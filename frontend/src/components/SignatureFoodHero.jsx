@@ -2,16 +2,17 @@ import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { gsap } from "gsap";
+import "@google/model-viewer";
 import GalaxyRestaurantSearch from "./GalaxyRestaurantSearch";
 import PhotorealFoodHero from "./motion/PhotorealFoodHero";
 
 const SODA = {
-  leaves: "https://api.getlayers.ai/storage/v1/object/public/public/assets/soda-14ff8a788d/leaves.glb",
-  cherry: "https://api.getlayers.ai/storage/v1/object/public/public/assets/soda-14ff8a788d/cherry.glb",
-  blueberry: "https://api.getlayers.ai/storage/v1/object/public/public/assets/soda-14ff8a788d/blueberry.glb",
-  can: "https://api.getlayers.ai/storage/v1/object/public/public/assets/soda-14ff8a788d/deit_soda2.glb",
-  greenCard: "https://api.getlayers.ai/storage/v1/object/public/public/assets/soda-14ff8a788d/Green%20Soda.png",
-  blueCard: "https://api.getlayers.ai/storage/v1/object/public/public/assets/soda-14ff8a788d/Blue%20Soda.png",
+  leaves: "/hero-assets/soda/leaves.glb",
+  cherry: "/hero-assets/soda/cherry.glb",
+  blueberry: "/hero-assets/soda/blueberry.glb",
+  can: "/hero-assets/soda/diet-soda.glb",
+  greenCard: "/hero-assets/soda/green-soda.png",
+  blueCard: "/hero-assets/soda/blue-soda.png",
   greenTexture: "/hero-assets/mojo-green-bangladesh-v3.png",
   blueTexture: "/hero-assets/mojo-blue-bangladesh-v3.png"
 };

@@ -3737,6 +3737,7 @@ button,
 }
 @keyframes premium-soda-float { 50% { translate:0 -20px; } }
 .premium-soda-loading { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:.7rem; letter-spacing:.16em; color:rgba(255,255,255,.5); }
+.premium-soda-can-fallback { position:absolute; left:50%; top:50%; width:min(30vw,430px); height:auto; transform:translate(-50%,-50%) rotate(12deg); object-fit:contain; filter:drop-shadow(0 34px 48px rgba(0,0,0,.48)); animation:premium-soda-float 6s ease-in-out infinite; }
 
 .premium-soda-object-layer { position:absolute; inset:0; pointer-events:none; }
 .premium-soda-leaves { z-index:2; transform:translate(calc(var(--soda-x) * -15px),calc(var(--soda-y) * -15px)); }
