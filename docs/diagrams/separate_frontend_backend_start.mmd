@@ -1,0 +1,13 @@
+flowchart LR
+  subgraph F[frontend/ — independent React app]
+    FV[React View]
+    FA[API client]
+  end
+  subgraph B[backend/ — independent Express MVC app]
+    BR[Routes]
+    BC[Controllers]
+    BS[Services]
+    BM[Models]
+  end
+  DB[(MongoDB Atlas)]
+  FV --> FA -->|HTTP / credentials| BR --> BC --> BS --> BM --> DB

@@ -1,0 +1,9 @@
+flowchart LR
+    B[Browser\nhttp://localhost:5173] -->|/api/*| V[Vite dev server\nlocalhost:5173]
+    V -->|proxy| E[Express backend\nlocalhost:5000]
+    E --> M[(MongoDB Atlas)]
+    M --> E
+    E --> V
+    V --> B
+
+    D[npm run diagnose:restaurants] --> M

@@ -1,0 +1,14 @@
+flowchart TD
+    A[Existing Atlas data] --> B{Legacy categoryId?}
+    B -->|Yes| C[repair:demo-runtime maps slug to MenuCategory ObjectId]
+    B -->|No| D[Keep valid reference]
+    C --> E[Canonical demo dishes active + available]
+    D --> E
+    E --> F{Ember House 3D demo dish?}
+    F -->|Yes| G[Restore validated Phase 7 GLB metadata]
+    F -->|No| H[Keep normal menu / Photo Explode]
+    G --> I[Public /api/restaurants/:slug/menu/3d]
+    H --> J[Public /api/restaurants/:slug/menu]
+    I --> K[React lazy 3D page]
+    K --> L[Three + R3F + Drei + GSAP exploded layers]
+    J --> M[Motion Photo Explode / accessible DOM menu]

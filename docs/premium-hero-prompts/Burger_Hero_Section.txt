@@ -1,0 +1,362 @@
+You are an expert award-winning creative front-end developer and motion designer. Build a premium,
+photorealistic, full-viewport food hero section as a single self-contained `index.html`.
+
+The result must feel like a luxury food commercial / Awwwards-style interactive product page,
+not like a student demo, cartoon, game UI, primitive 3D geometry, or generic template.
+
+Important realism rule:
+- DO NOT generate images.
+- DO NOT invent cartoon or illustration assets.
+- Use only the supplied real photographic PNG/WebP/JPG/GLB assets or the explicit remote asset URLs.
+- If an expected asset is missing, keep the code ready for it and show a graceful neutral fallback.
+- Never replace missing food assets with emojis, CSS circles, fake gradients pretending to be food,
+  primitive Three.js planes as visible "ingredients", or low-detail generated shapes.
+- Preserve the exact identity, lighting direction, perspective, proportions, color and texture of
+  the real food across assembled and exploded states.
+- Every floating food element must look like the SAME real photographed object before and after motion.
+
+Implementation constraints:
+- Pure HTML/CSS/JavaScript in one file.
+- No framework, no bundler, no build step.
+- Use GSAP from CDN for the hero choreography.
+- Use CSS 3D transforms and perspective for photographic food layers.
+- You may use `<model-viewer>` only when a real GLB is explicitly supplied for a non-food prop.
+- Respect `prefers-reduced-motion`.
+- Responsive desktop/tablet/mobile behavior is mandatory.
+- Avoid heavy continuous filters that cause poor GPU performance.
+- Keep the composition premium at 1440×900, 1920×1080, laptop, tablet and mobile sizes.
+
+# Recreate this site as a single HTML file: ReserveUrTime — Burger Hero
+
+## What it is
+
+A full-viewport luxury burger hero. A hyper-realistic gourmet burger floats in a dark charcoal,
+espresso and warm amber environment. The burger initially appears fully assembled and looks like a
+high-budget food photography campaign: toasted brioche bun, real sesame seeds, crisp lettuce,
+tomato, pickles/onion where supplied, glossy melted cheese, deeply grilled beef with visible char
+and moisture, sauce, and a toasted bottom bun.
+
+The signature interaction is a controlled, premium "ingredient reveal". When the user clicks
+`EXPLORE LAYERS`, the exact same burger separates vertically into its photographic ingredient layers.
+The layers stay aligned to the original burger silhouette and retain the same photography,
+perspective, lighting and scale. They do not fly randomly around the screen. `ASSEMBLE` reverses the
+motion precisely.
+
+The burger subtly tracks the pointer using 3D parallax. Steam drifts upward. A few sesame seeds,
+pepper specks and herb flecks float in shallow depth. Shadows between ingredients deepen during the
+exploded state. The mood is refined, cinematic, warm, appetizing and realistic.
+
+## Page shell
+
+In `<head>` include:
+
+```html
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+```
+
+Global reset:
+
+```css
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; min-height:100%; }
+body {
+  font-family:'DM Sans',sans-serif;
+  background:#070707;
+  color:#f7f3ec;
+  overflow:hidden;
+}
+button, a { font:inherit; }
+img { display:block; user-select:none; -webkit-user-drag:none; }
+```
+
+The hero is exactly one viewport high:
+
+```css
+.hero {
+  position:relative;
+  width:100vw;
+  height:100svh;
+  min-height:720px;
+  overflow:hidden;
+  isolation:isolate;
+}
+```
+
+Inside the hero use:
+1. atmosphere/background layer,
+2. ambient particles/steam/smoke layer,
+3. left editorial copy,
+4. center/right food stage,
+5. small premium controls,
+6. depth shadows,
+7. optional decorative foreground particles.
+
+Do NOT include a site-wide navbar. This hero will later be embedded as one full-height section inside
+the ReserveUrTime homepage.
+
+## Visual direction
+
+Palette:
+- page base: `#080706`
+- warm inner glow: `#3a1f10`
+- amber highlight: `#d98b3a`
+- cream text: `#f4eee5`
+- muted text: `rgba(244,238,229,.64)`
+- glass: `rgba(255,255,255,.055)`
+- glass border: `rgba(255,255,255,.12)`
+- active control: `#f2e6d4`
+- active control text: `#1a110b`
+
+Background:
+- radial-gradient at 67% 48% from deep warm brown to near-black.
+- a very soft low amber pool of light directly behind the burger.
+- add extremely subtle film grain with CSS pseudo-element using opacity <= .045.
+- no visible star field in this section.
+- no neon colors.
+
+Copy column:
+- left side, max width 520px.
+- eyebrow: `RESERVEURTIME / SIGNATURE LAYERS`
+- giant serif headline:
+  `Built`
+  `layer`
+  `by layer.`
+- supporting copy:
+  `A real photographed burger, suspended long enough to see the craft inside.`
+- CTA pill: `Find a table`
+- small metadata line: `CHAR • MELT • CRUNCH • HEAT`
+
+Typography:
+- heading: `'Instrument Serif'`, weight 400.
+- body/nav-like labels: `'Manrope'`.
+- heading size: `clamp(5rem, 9vw, 11rem)`, line-height .78.
+- do not use cartoon display fonts.
+
+## Food stage
+
+Use a 3D-perspective DOM stage:
+
+```css
+.food-stage {
+  position:absolute;
+  inset:0 0 0 42%;
+  perspective:1400px;
+  transform-style:preserve-3d;
+}
+```
+
+The burger sits around 68% viewport width / 53% viewport height.
+
+Create this exact DOM layer order:
+
+```html
+<div class="burger-rig" id="burgerRig">
+  <div class="food-layer layer-top-bun" data-depth="84" data-y="-260"><img ...></div>
+  <div class="food-layer layer-lettuce-top" data-depth="66" data-y="-170"><img ...></div>
+  <div class="food-layer layer-tomato" data-depth="46" data-y="-105"><img ...></div>
+  <div class="food-layer layer-cheese" data-depth="28" data-y="-42"><img ...></div>
+  <div class="food-layer layer-patty" data-depth="10" data-y="32"><img ...></div>
+  <div class="food-layer layer-pickle-onion" data-depth="-8" data-y="102"><img ...></div>
+  <div class="food-layer layer-bottom-bun" data-depth="-26" data-y="185"><img ...></div>
+</div>
+```
+
+Only include layers for assets that actually exist. If the supplied burger has fewer components,
+collapse them intelligently but keep a target of 5–8 visible layers.
+
+Each image:
+- must have transparent background if possible;
+- `object-fit:contain`;
+- may use a subtle `filter: drop-shadow(...)`;
+- do not blur the food itself;
+- must be high-resolution enough to survive 1.1× scale on desktop.
+
+Initial assembled transforms:
+- every layer centered over the same burger origin;
+- layer-specific assembled `y` offsets must be calibrated so the burger looks perfectly assembled;
+- use `translate3d(x, y, z)` and not absolute `top` changes for animation;
+- each layer may have a tiny individual `rotateZ` between -1.5° and +1.5°.
+
+## Exploded state choreography
+
+Control:
+```html
+<div class="view-toggle">
+  <button class="active" data-mode="explode">EXPLORE LAYERS</button>
+  <button data-mode="assemble">ASSEMBLE</button>
+</div>
+```
+
+The hero loads assembled.
+
+When `EXPLORE LAYERS` is clicked:
+1. 0.00–0.25s: entire burger rises `-10px`, scales `1.015`.
+2. 0.12–1.45s: ingredient layers separate vertically with stagger `0.055s`.
+3. top bun target: y `-260px`, x `+8px`, z `+84px`, rotateZ `+4deg`, rotateX `-2deg`.
+4. top lettuce: y `-170px`, x `-12px`, z `+66px`, rotateZ `-3deg`.
+5. tomato: y `-105px`, x `+12px`, z `+46px`, rotateZ `+3deg`.
+6. cheese: y `-42px`, x `-8px`, z `+28px`, rotateZ `-4deg`.
+7. patty: y `+32px`, x `+5px`, z `+10px`, rotateZ `+2deg`.
+8. pickle/onion group: y `+102px`, x `-10px`, z `-8px`, rotateZ `-3deg`.
+9. bottom bun: y `+185px`, x `+5px`, z `-26px`, rotateZ `+2deg`.
+10. use `duration:1.15`, `ease:"power3.inOut"`.
+11. ingredient inter-layer shadows intensify as distance increases.
+12. add a soft 0.4s glow sweep behind the burger during the transition.
+
+The exploded burger must still read as ONE vertical burger composition.
+
+When `ASSEMBLE` is clicked:
+- reverse all layers to exact stored assembled transforms;
+- duration `1.05`;
+- stagger from bottom to top `0.045`;
+- ease `"power3.inOut"`;
+- at completion reduce burger rig scale to 1.
+
+Do not:
+- scatter ingredients more than ~22px horizontally;
+- rotate any food layer beyond 6deg;
+- make ingredients spin 360deg;
+- invent ingredient layers;
+- morph food textures;
+- add fake 3D cubes/planes around the burger.
+
+## Pointer interaction
+
+Track pointer as normalized `[-.5,.5]`.
+
+Smooth with lerp factor `.055`.
+
+Per frame:
+- entire burger rig rotateY = mouseX * 7deg;
+- entire burger rig rotateX = mouseY * -4deg;
+- translateX = mouseX * 12px;
+- translateY = mouseY * 8px.
+- food layer local X parallax = mouseX * `(depth / 84) * 8px`.
+- local Y parallax = mouseY * `(depth / 84) * 5px`.
+- copy column parallax <= 4px.
+- foreground sesame/pepper particles parallax 20–32px.
+
+If `prefers-reduced-motion`, disable pointer tilt and continuous floating; the buttons should still
+switch assembled/exploded states with a short opacity/translate transition.
+
+## Idle motion
+
+When not transitioning:
+- burger rig bob: `sin(time*.85)*7px`.
+- rotateZ: `sin(time*.45)*.6deg`.
+- steam wisps continuously rise and fade.
+- 8–14 tiny real-looking sesame/pepper flecks drift, never crossing the headline heavily.
+- no constant spinning.
+
+## Steam
+
+Create 4–6 absolutely positioned blurred translucent divs using radial gradients or supplied steam PNGs.
+
+Rules:
+- originate 20–90px above the top bun;
+- width 22–55px, height 120–190px;
+- opacity .08–.22;
+- animation 4.5–8s;
+- rise 140–240px;
+- drift X <= 35px;
+- scale from .7 to 1.25;
+- blur 10–20px;
+- steam must be subtle, not smoke-machine fog.
+
+## Micro-interactions
+
+CTA:
+- on hover translateY(-2px), border brightens.
+- circular arrow inside CTA rotates 45deg.
+
+Layer-toggle pill:
+- glass surface with active cream segment.
+- active segment changes with GSAP sliding pill background.
+- no bright green/blue UI.
+
+Layer labels:
+When exploded, show optional tiny callouts near the right edge of each major layer:
+`Brioche`, `Greens`, `Tomato`, `Cheese`, `Charred Beef`, `Bottom Bun`.
+Callouts fade in after layer separation and fade out before assembly.
+Keep them tiny and editorial, not infographic-like.
+
+## Responsive
+
+Desktop >= 1200:
+- copy 6% left.
+- burger visual 47–94% width region.
+- burger rig visual width 520–680px.
+
+Tablet 768–1199:
+- headline size clamp(4rem, 9vw, 7rem).
+- food stage starts at 34%.
+- burger width 46vw.
+- exploded Y distances multiplied by .76.
+
+Mobile <= 767:
+- hero remains one viewport but min-height 760px.
+- copy moves to top 7%.
+- headline max 3.6rem.
+- burger centered at 52% width / 62% height.
+- burger visual width `min(88vw, 430px)`.
+- exploded Y offsets multiplied by .58.
+- hide layer callouts and decorative particles.
+- toggle pinned near bottom center.
+- no horizontal overflow.
+
+## Accessibility
+
+- all buttons real `<button>`.
+- add `aria-pressed`.
+- images have descriptive alt text.
+- keyboard Enter/Space works.
+- high contrast text.
+- reduced-motion support.
+
+## Assets
+
+Use these placeholder tokens. The developer will replace them with real high-resolution food assets:
+
+- `BURGER_TOP_BUN_PNG`
+- `BURGER_TOP_LETTUCE_PNG`
+- `BURGER_TOMATO_PNG`
+- `BURGER_CHEESE_PNG`
+- `BURGER_PATTY_PNG`
+- `BURGER_PICKLE_ONION_PNG`
+- `BURGER_BOTTOM_BUN_PNG`
+- optional `BURGER_STEAM_PNG`
+- optional `SESAME_PARTICLE_PNG`
+
+If only a subset is supplied, adapt the DOM but preserve the same premium behavior.
+
+## Loader / reveal
+
+No full-screen loader.
+
+Entrance timeline after images resolve:
+- 0.0s background glow fade in.
+- 0.15s eyebrow rises 12px + fades.
+- 0.25s headline lines reveal upward with clip-path.
+- 0.45s burger layers begin from `opacity:0`, `scale:.94`, `y:+25` and settle assembled with stagger .055.
+- 0.8s body copy/CTA fade.
+- 1.05s controls fade in.
+Total reveal around 1.7s.
+
+## Quality gate
+
+Before final output, verify:
+- burger looks photographic and appetizing;
+- no rectangular image backgrounds are visible;
+- the exact same burger identity is maintained across states;
+- shadows follow ingredient separation;
+- no ingredient layer overlaps unnaturally in exploded state;
+- there is no cartoon/CGI substitute;
+- animation runs smoothly;
+- no console errors;
+- mobile remains usable;
+- controls are keyboard accessible.

@@ -1,0 +1,319 @@
+You are an expert award-winning creative front-end developer and motion designer. Build a premium,
+photorealistic, full-viewport food hero section as a single self-contained `index.html`.
+
+The result must feel like a luxury food commercial / Awwwards-style interactive product page,
+not like a student demo, cartoon, game UI, primitive 3D geometry, or generic template.
+
+Important realism rule:
+- DO NOT generate images.
+- DO NOT invent cartoon or illustration assets.
+- Use only the supplied real photographic PNG/WebP/JPG/GLB assets or the explicit remote asset URLs.
+- If an expected asset is missing, keep the code ready for it and show a graceful neutral fallback.
+- Never replace missing food assets with emojis, CSS circles, fake gradients pretending to be food,
+  primitive Three.js planes as visible "ingredients", or low-detail generated shapes.
+- Preserve the exact identity, lighting direction, perspective, proportions, color and texture of
+  the real food across assembled and exploded states.
+- Every floating food element must look like the SAME real photographed object before and after motion.
+
+Implementation constraints:
+- Pure HTML/CSS/JavaScript in one file.
+- No framework, no bundler, no build step.
+- Use GSAP from CDN for the hero choreography.
+- Use CSS 3D transforms and perspective for photographic food layers.
+- You may use `<model-viewer>` only when a real GLB is explicitly supplied for a non-food prop.
+- Respect `prefers-reduced-motion`.
+- Responsive desktop/tablet/mobile behavior is mandatory.
+- Avoid heavy continuous filters that cause poor GPU performance.
+- Keep the composition premium at 1440×900, 1920×1080, laptop, tablet and mobile sizes.
+
+# Recreate this site as a single HTML file: ReserveUrTime — Pizza Hero
+
+## What it is
+
+A full-viewport premium artisan pizza hero built from real photographic layers. The mood is a dark,
+cinematic oven environment: almost-black background, deep tomato-crimson glow, a gentle amber
+oven-light sweep, floating flour dust and tiny embers.
+
+A photorealistic whole pizza hovers in a subtle 3/4 perspective. The hero starts assembled. When
+`EXPLORE LAYERS` is triggered, the SAME pizza separates upward in controlled depth layers:
+fresh herbs/toppings, primary topping layer, mozzarella, tomato sauce, crust/base. The pizza remains
+circular, aligned and recognizably the same object. `ASSEMBLE` reconnects all layers precisely.
+
+No cartoon pizza, no low-poly geometry, no flat colored discs, no exaggerated flying slices.
+
+## Page shell
+
+In `<head>` include:
+
+```html
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+```
+
+Global reset:
+
+```css
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; min-height:100%; }
+body {
+  font-family:'DM Sans',sans-serif;
+  background:#070707;
+  color:#f7f3ec;
+  overflow:hidden;
+}
+button, a { font:inherit; }
+img { display:block; user-select:none; -webkit-user-drag:none; }
+```
+
+The hero is exactly one viewport high:
+
+```css
+.hero {
+  position:relative;
+  width:100vw;
+  height:100svh;
+  min-height:720px;
+  overflow:hidden;
+  isolation:isolate;
+}
+```
+
+Inside the hero use:
+1. atmosphere/background layer,
+2. ambient particles/steam/smoke layer,
+3. left editorial copy,
+4. center/right food stage,
+5. small premium controls,
+6. depth shadows,
+7. optional decorative foreground particles.
+
+Do NOT include a site-wide navbar. This hero will later be embedded as one full-height section inside
+the ReserveUrTime homepage.
+
+## Visual direction
+
+Palette:
+- outer background `#070506`
+- deep wine `#1b0809`
+- tomato glow `#53130f`
+- ember `#df6a2e`
+- cheese highlight `#f0c483`
+- main text `#fff4e7`
+- muted `rgba(255,244,231,.62)`
+
+Background:
+```css
+background:
+ radial-gradient(circle at 70% 48%, rgba(117,31,20,.42) 0%, rgba(41,9,9,.25) 28%, transparent 58%),
+ radial-gradient(circle at 58% 94%, rgba(213,88,33,.16), transparent 32%),
+ #070506;
+```
+
+Copy:
+- eyebrow `RESERVEURTIME / FIRED AT HIGH HEAT`
+- heading:
+  `Heat.`
+  `Lift.`
+  `Crave.`
+- body:
+  `A real artisan pizza suspended between fire, melt and the moment it lands on the table.`
+- CTA `Find pizza nearby`
+- micro label `CHARRED • MELTED • HAND-FINISHED`
+
+## Pizza stage
+
+Use a perspective DOM stage:
+```css
+.pizza-stage {
+  position:absolute;
+  inset:0 0 0 40%;
+  perspective:1500px;
+  transform-style:preserve-3d;
+}
+```
+
+The pizza visual should occupy roughly 520–760px desktop diameter, with a 3/4 tilt:
+- assembled rig rotateX `56deg`
+- rotateZ `-8deg`
+- rotateY `2deg`
+- position around 70% width, 52% height.
+
+DOM:
+```html
+<div class="pizza-rig">
+  <div class="pizza-layer layer-herbs"><img src="PIZZA_HERBS_PNG"></div>
+  <div class="pizza-layer layer-toppings"><img src="PIZZA_TOPPINGS_PNG"></div>
+  <div class="pizza-layer layer-cheese"><img src="PIZZA_CHEESE_PNG"></div>
+  <div class="pizza-layer layer-sauce"><img src="PIZZA_SAUCE_PNG"></div>
+  <div class="pizza-layer layer-crust"><img src="PIZZA_CRUST_PNG"></div>
+</div>
+```
+
+If a real plate/board is supplied, place it below as non-exploding support:
+`PIZZA_BOARD_PNG`.
+
+## Explode geometry
+
+Unlike burger, pizza separates mostly along its local normal axis so layers feel like lifting from
+the baked base while the whole pizza remains in 3/4 perspective.
+
+Store assembled transforms first.
+
+On `EXPLORE LAYERS`:
+- rig scale 1 → 1.025 over .28s.
+- crust remains near base with local translateZ `0`.
+- sauce: translateZ `55px`, tiny translateX `-4px`, rotateZ `-1.5deg`.
+- cheese: translateZ `115px`, translateX `+4px`, rotateZ `+2deg`.
+- toppings: translateZ `185px`, translateX `-6px`, rotateZ `-2.5deg`.
+- herbs: translateZ `245px`, translateX `+7px`, rotateZ `+3deg`.
+- duration `1.25s`, stagger `.075s`, ease `"power3.inOut"`.
+
+Because the rig itself is tilted, the separation should read as a beautiful vertical-depth stack.
+
+Do not flatten perspective when exploded.
+
+## Cheese stretch
+
+Create 3–5 optional `cheese-thread` elements only if `PIZZA_CHEESE_THREAD_PNG` or SVG thread assets
+are supplied.
+
+Behavior:
+- appear between crust/cheese during the first 45% of explode.
+- scaleY from .3 to 1.0 as cheese lifts.
+- opacity peaks at .65.
+- at 70% transition, threads thin and fade.
+- on assemble reverse briefly.
+- subtle only; no giant cartoon mozzarella strings.
+
+If no thread asset is supplied, do not fake large cheese strings with thick CSS shapes.
+
+## Pizza rotation / pointer
+
+Idle:
+- rotateZ oscillation ±1.2deg over 7s.
+- rig bob in screen Y ±6px.
+- tiny perspective breathing: scale 1 → 1.01 → 1.
+
+Pointer:
+- screen-space translate X mouse*10px;
+- translate Y mouse*7px;
+- additional rotateZ mouseX*2.5deg;
+- rotateY mouseX*3deg;
+- rotateX base 56deg + mouseY*-2deg.
+- toppings local parallax slightly stronger than crust.
+
+Do not allow user drag/orbit; this is a curated hero camera.
+
+## Oven-light sweep
+
+Add a pseudo-element `.heat-sweep` behind pizza:
+- elliptical blur 90px;
+- amber-to-transparent gradient.
+- once every 6–8s sweep left→right behind the pizza.
+- opacity max .16.
+
+## Flour + ember particles
+
+Create 22–36 lightweight DOM particles:
+- 70% flour: warm white, 1–3px, opacity .08–.28.
+- 30% ember: orange, 1–2px, opacity .18–.5.
+- slow rising/diagonal drift.
+- depth layers: background, mid, foreground.
+- pointer parallax based on depth.
+- no particle should look like a star field.
+
+## Lighting / shadows
+
+Each layer gets:
+```css
+filter: drop-shadow(0 24px 40px rgba(0,0,0,.38));
+```
+but adjust by depth:
+- deeper base shadow stronger/softer.
+- herbs minimal shadow.
+- exploded state adds a second small contact shadow beneath each lifted layer.
+
+Do not add outlines around pizza layers.
+
+## Toggle
+
+Glass pill at upper-right of hero stage:
+`EXPLORE LAYERS` / `ASSEMBLE`.
+
+Colors:
+- base `rgba(10,8,8,.5)`
+- border `rgba(255,255,255,.12)`
+- active cream `#fff0dd`
+- active text `#24130d`.
+
+## Copy entrance
+
+Headline lines reveal with mask/clip.
+Pizza assembles INTO place from subtle depth offsets:
+- crust opacity 0 → 1, z -30 → 0
+- sauce z 20 → 0
+- cheese z 50 → 0
+- toppings z 80 → 0
+- herbs z 110 → 0
+Stagger .06, duration .95.
+
+This creates a premium "ingredients settling onto pizza" reveal without a noisy full explode on load.
+
+## Responsive
+
+Desktop:
+- copy 5.5% left.
+- pizza visual 58–96% width.
+- pizza diameter 52vw max 760px.
+
+Tablet:
+- stage starts 32%;
+- pizza 56vw;
+- explode depths × .78.
+
+Mobile:
+- copy top 7%, centered or left with width 88%.
+- headline max 3.65rem.
+- pizza positioned 50%/64%.
+- pizza diameter 82vw.
+- rig rotateX 61deg.
+- explode depths × .54.
+- controls bottom-center.
+- reduce particles to 12.
+
+## Accessibility / reduced motion
+
+Reduced motion:
+- no continuous pizza wobble.
+- no particles except static opacity.
+- button transitions use opacity + 10px translate only.
+
+## Assets
+
+- `PIZZA_CRUST_PNG`
+- `PIZZA_SAUCE_PNG`
+- `PIZZA_CHEESE_PNG`
+- `PIZZA_TOPPINGS_PNG`
+- `PIZZA_HERBS_PNG`
+- optional `PIZZA_BOARD_PNG`
+- optional `PIZZA_CHEESE_THREAD_PNG`
+
+All must be real photographic transparent assets from the SAME pizza photo set.
+Never mix toppings from a different pizza image.
+
+## Quality gate
+
+Verify:
+- same pizza identity in every state;
+- crust edge texture remains sharp;
+- mozzarella has realistic highlights;
+- charred spots remain photographic;
+- separation direction reads in 3D;
+- no colored flat discs are visible;
+- toppings never become generic icons;
+- no console errors;
+- mobile composition remains premium.

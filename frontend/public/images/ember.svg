@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <radialGradient id="g" cx="72%" cy="46%" r="70%">
+      <stop offset="0" stop-color="#a34925"/>
+      <stop offset=".35" stop-color="#3b1914"/>
+      <stop offset="1" stop-color="#080707"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#g)"/>
+  <circle cx="1120" cy="450" r="250" fill="none" stroke="#e6c6a3" stroke-opacity=".15" stroke-width="3"/>
+  <circle cx="1120" cy="450" r="170" fill="#130b09" fill-opacity=".65"/>
+  <path d="M220 770 C480 560 630 850 930 650" fill="none" stroke="#f0d4b2" stroke-opacity=".12" stroke-width="2"/>
+  <text x="120" y="165" fill="#f0e6d7" fill-opacity=".7" font-family="Georgia" font-size="68" letter-spacing="16">EMBER</text>
+</svg>

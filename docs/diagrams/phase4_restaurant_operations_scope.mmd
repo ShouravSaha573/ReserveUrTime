@@ -1,0 +1,11 @@
+flowchart TD
+    RA[Restaurant Admin session] --> AUTH[authenticateUser]
+    AUTH --> ROLE[requireRestaurantAdmin]
+    ROLE --> SCOPE[requireManagedRestaurant]
+    SCOPE --> RID[req.managedRestaurantId]
+    RID --> CAT[Menu Categories]
+    RID --> DISH[Basic Dishes]
+    RID --> TABLE[Dining Tables]
+    RID --> RSV[Reservations]
+    RID --> GAL[Gallery]
+    PA[Platform Admin] -. no Restaurant-operational routes .-> DENIED[Denied boundary]

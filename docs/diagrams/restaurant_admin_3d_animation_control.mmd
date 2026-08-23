@@ -1,0 +1,22 @@
+flowchart TD
+    A[Restaurant Admin Login] --> B[Authenticated restaurant_admin]
+    B --> C[requireManagedRestaurant]
+    C --> D[Own Restaurant Menu]
+    D --> E[Select 3D-enabled Dish]
+    E --> F[Load named GLB layers + current structured config]
+    F --> G[Edit participation / XYZ offsets / order / duration / stagger / easing preset]
+    G --> H[Preview Explode / Assemble]
+    H --> I{Save?}
+    I -- No --> G
+    I -- Reset --> J[Restore model/default animation config]
+    J --> H
+    I -- Yes --> K[Backend validates scope + bounds + allowlists]
+    K --> L{Valid?}
+    L -- No --> M[Reject with safe validation message]
+    M --> G
+    L -- Yes --> N[Save MenuItem.threeD animation metadata]
+    N --> O[Public 3D dish uses saved configuration]
+    O --> P[DOM/poster fallback remains available]
+
+    Q[Platform Admin] -. no access .-> G
+    R[Arbitrary JS/CSS/Shader] -. rejected .-> K

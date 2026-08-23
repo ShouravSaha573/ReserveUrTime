@@ -1,0 +1,247 @@
+You are an expert creative front-end developer and motion designer. Produce a **single self-contained `index.html`**
+that recreates the following premium hero concept exactly in layout, visuals, motion, and interaction.
+
+Pure HTML/CSS/JS in one file: no build step, no framework, no bundler. Use CDN scripts only for the
+libraries actually used (GSAP and Google `<model-viewer>`). Hardcode every fixed visual/motion value
+listed in this prompt.
+
+IMPORTANT ASSET / REALISM RULES:
+- DO NOT use or embed any existing Burger/Pizza/Momo/Kebab JPG, PNG, or WebP food image.
+- DO NOT image-generate anything.
+- The main food object must be represented by a **realistic 3D GLB/GLTF model** loaded through
+  `<model-viewer>` when such an asset is provided.
+- Floating decorative food props must also use real 3D GLB/GLTF assets when provided.
+- Do NOT fake the food with CSS circles, rectangles, emojis, SVG illustrations, primitive Three.js
+  boxes/spheres, low-poly mockups, or cartoon models.
+- If a required 3D asset URL is not available, leave the placeholder token intact and provide a
+  graceful neutral loading/fallback state. Never substitute a cartoon or generic stock image.
+- The hero is a standalone section that will be embedded inside the ReserveUrTime homepage.
+- Do NOT add a site-wide navbar inside the standalone hero.
+- Respect `prefers-reduced-motion`.
+- Keep the experience premium and smooth on desktop, tablet, and mobile.
+
+In `<head>` use:
+
+```html
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Inter:wght@400;500&family=Manrope:wght@400;700&family=Galada&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+```
+
+Global style foundation:
+
+```css
+:root {
+  --text:#fff;
+  --muted:rgba(255,255,255,.68);
+  --glass:rgba(255,255,255,.055);
+  --glass-border:rgba(255,255,255,.13);
+  --font-main:'Inter',sans-serif;
+  --font-heading:'Galada',cursive;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+.hero {
+  position:relative;
+  width:100%;
+  height:100svh;
+  min-height:720px;
+  overflow:hidden;
+  isolation:isolate;
+  color:var(--text);
+  font-family:var(--font-main);
+}
+.hero-content {
+  position:relative;
+  width:100%;
+  height:100%;
+  display:flex;
+  justify-content:space-between;
+  align-items:stretch;
+  padding:0 4%;
+}
+.main-title,.side-title {
+  font-family:var(--font-heading);
+  font-size:clamp(5rem,10vw,11rem);
+  line-height:.8;
+  font-weight:400;
+  white-space:nowrap;
+}
+```
+
+Core composition MUST follow the supplied Soda hero style:
+1. full-viewport radial-gradient environment,
+2. giant editorial left headline + body copy + CTA + small badge,
+3. huge realistic 3D product/food centerpiece,
+4. floating 3D props around the centerpiece,
+5. foreground and background depth groups,
+6. cursor-driven parallax,
+7. pointer repulsion for nearby floating props,
+8. subtle endless levitation,
+9. right-side two-card selector,
+10. a giant secondary editorial headline at lower-right,
+11. dynamic theme transition when the right-side card changes,
+12. no explode/assemble/deconstruction interaction.
+
+The page section must feel like a premium food campaign, not a dashboard, card grid, or product catalog.
+
+# Recreate this hero: ReserveUrTime — Artisan Pizza
+
+## What it is
+
+A full-viewport premium pizza hero with one **intact photorealistic 3D artisan pizza** floating in a
+cinematic dark oven environment. The pizza remains whole at all times. It slowly rotates, levitates,
+and tilts with cursor movement.
+
+Around it, realistic 3D pizza-related props drift in layered depth: basil leaves, cherry tomatoes,
+mozzarella pieces, pepperoni slices, mushrooms, olives and tiny flour particles. The nearby props are
+softly repelled by the pointer.
+
+Two upper-right glass cards switch between:
+- `WOOD-FIRED CLASSIC`
+- `TRUFFLE WHITE`
+
+The switch keeps the pizza intact, changes the full theme, spins the pizza 720°, swaps to the second
+real 3D pizza model/material if available, and reconfigures the floating topping props.
+
+## Fixed palettes
+
+Wood-Fired:
+- inner `#7d2114`
+- mid `#3b0f0b`
+- outer `#080303`
+
+Truffle White:
+- inner `#6d5c31`
+- mid `#2d2514`
+- outer `#080703`
+
+Accent:
+- cream `#fff0d9`
+- accent text `#2a140b`
+
+Left:
+- eyebrow `RESERVEURTIME / WOOD-FIRED MOMENTS`
+- headline:
+  `Heat`
+  `meets`
+  `craft`
+- body:
+  `Stone, flame and a slow melt — an artisan pizza moment built for the table.`
+- CTA `Explore restaurants`
+- badge: `OVEN FEATURE / ARTISAN PIZZA`
+
+Right title:
+- `Fired`
+- `Beautifully`
+
+## 3D pizza
+
+```html
+<model-viewer id="pizza-model"
+  src="PIZZA_CLASSIC_GLB"
+  camera-controls
+  disable-zoom
+  interaction-prompt="none"
+  environment-image="neutral"
+  exposure="1.35"
+  shadow-intensity="0"
+  camera-orbit="-12deg 58deg 290%"
+  field-of-view="28deg">
+</model-viewer>
+```
+
+Sizing:
+- `82vw × 82vh`
+- center ~52% / 52%
+- pointer orbit:
+  - azimuth `-12 + mouseX*26 + switchSpin`
+  - polar `58 + mouseY*10`
+  - distance `290%`
+- idle vertical float ±14px
+- idle orbit drift only ±2deg, not a full spin
+
+## Floating props
+
+Foreground:
+- basil ×2
+- tomato ×2
+- pepperoni ×2
+- mozzarella ×1
+- mushroom ×1
+
+Background:
+- olive ×2
+- basil ×1
+- flour-cluster ×1
+
+Required 3D assets:
+- `BASIL_GLB`
+- `CHERRY_TOMATO_GLB`
+- `PEPPERONI_GLB`
+- `MOZZARELLA_GLB`
+- `MUSHROOM_GLB`
+- `OLIVE_GLB`
+
+Use flour only as procedural 1–2px DOM particles, not a food image.
+
+Pointer repulsion:
+- radius 390px
+- strength -70
+- lerp .09
+
+## Switch
+
+Cards:
+- `Wood-Fired Classic`
+- `Truffle White`
+
+At selection:
+1. morph radial background in 1.5s.
+2. pizza spins 360° over .62s with blur to 12px.
+3. swap model/material at peak.
+4. continue to 720° over 1.35s, blur to 0.
+5. toppings implode to center and reappear in new positions.
+
+Alternate floating set can favor:
+- truffle/mushroom/mozzarella for white mode,
+- tomato/basil/pepperoni for classic mode.
+
+Never explode pizza layers.
+
+## Atmosphere
+
+- 18–28 flour specks drifting diagonally.
+- 8–14 tiny ember points rising in far background.
+- very soft oven light sweep behind pizza every 7s.
+- no visible flame graphic in front of food.
+
+## Responsive
+
+Tablet:
+- pizza `95vw × 64vh`
+- cards scale .9
+- prop count reduced to 7
+
+Mobile:
+- central pizza around 50% / 64%
+- hero visual `90vw`
+- only basil/tomato/mozzarella foreground props
+- cards compact and aligned top-right
+- giant right title max 3.6rem
+
+## Assets
+
+- `PIZZA_CLASSIC_GLB`
+- `PIZZA_TRUFFLE_GLB`
+- `BASIL_GLB`
+- `CHERRY_TOMATO_GLB`
+- `PEPPERONI_GLB`
+- `MOZZARELLA_GLB`
+- `MUSHROOM_GLB`
+- `OLIVE_GLB`
+
+No Pizza JPG/PNG/WebP hero image.

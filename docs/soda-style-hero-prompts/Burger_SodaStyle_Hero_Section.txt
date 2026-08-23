@@ -1,0 +1,271 @@
+You are an expert creative front-end developer and motion designer. Produce a **single self-contained `index.html`**
+that recreates the following premium hero concept exactly in layout, visuals, motion, and interaction.
+
+Pure HTML/CSS/JS in one file: no build step, no framework, no bundler. Use CDN scripts only for the
+libraries actually used (GSAP and Google `<model-viewer>`). Hardcode every fixed visual/motion value
+listed in this prompt.
+
+IMPORTANT ASSET / REALISM RULES:
+- DO NOT use or embed any existing Burger/Pizza/Momo/Kebab JPG, PNG, or WebP food image.
+- DO NOT image-generate anything.
+- The main food object must be represented by a **realistic 3D GLB/GLTF model** loaded through
+  `<model-viewer>` when such an asset is provided.
+- Floating decorative food props must also use real 3D GLB/GLTF assets when provided.
+- Do NOT fake the food with CSS circles, rectangles, emojis, SVG illustrations, primitive Three.js
+  boxes/spheres, low-poly mockups, or cartoon models.
+- If a required 3D asset URL is not available, leave the placeholder token intact and provide a
+  graceful neutral loading/fallback state. Never substitute a cartoon or generic stock image.
+- The hero is a standalone section that will be embedded inside the ReserveUrTime homepage.
+- Do NOT add a site-wide navbar inside the standalone hero.
+- Respect `prefers-reduced-motion`.
+- Keep the experience premium and smooth on desktop, tablet, and mobile.
+
+In `<head>` use:
+
+```html
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Inter:wght@400;500&family=Manrope:wght@400;700&family=Galada&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+```
+
+Global style foundation:
+
+```css
+:root {
+  --text:#fff;
+  --muted:rgba(255,255,255,.68);
+  --glass:rgba(255,255,255,.055);
+  --glass-border:rgba(255,255,255,.13);
+  --font-main:'Inter',sans-serif;
+  --font-heading:'Galada',cursive;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+.hero {
+  position:relative;
+  width:100%;
+  height:100svh;
+  min-height:720px;
+  overflow:hidden;
+  isolation:isolate;
+  color:var(--text);
+  font-family:var(--font-main);
+}
+.hero-content {
+  position:relative;
+  width:100%;
+  height:100%;
+  display:flex;
+  justify-content:space-between;
+  align-items:stretch;
+  padding:0 4%;
+}
+.main-title,.side-title {
+  font-family:var(--font-heading);
+  font-size:clamp(5rem,10vw,11rem);
+  line-height:.8;
+  font-weight:400;
+  white-space:nowrap;
+}
+```
+
+Core composition MUST follow the supplied Soda hero style:
+1. full-viewport radial-gradient environment,
+2. giant editorial left headline + body copy + CTA + small badge,
+3. huge realistic 3D product/food centerpiece,
+4. floating 3D props around the centerpiece,
+5. foreground and background depth groups,
+6. cursor-driven parallax,
+7. pointer repulsion for nearby floating props,
+8. subtle endless levitation,
+9. right-side two-card selector,
+10. a giant secondary editorial headline at lower-right,
+11. dynamic theme transition when the right-side card changes,
+12. no explode/assemble/deconstruction interaction.
+
+The page section must feel like a premium food campaign, not a dashboard, card grid, or product catalog.
+
+# Recreate this hero: ReserveUrTime — Gourmet Burger
+
+## What it is
+
+A full-viewport premium burger hero with one **intact photorealistic 3D gourmet burger** floating at
+the center. The burger slowly levitates, tilts toward the cursor, and reacts with real-time camera
+parallax. Around it, realistic 3D ingredients float at different depths: tomato slices, lettuce leaves,
+pickles, onion rings, sesame seeds and small herb pieces. They drift continuously and are repelled by
+the pointer like a soft force field.
+
+The hero has two visual modes chosen from two glass cards at the upper-right:
+
+- `CHARRED CLASSIC`
+- `SMOKED CHEESE`
+
+Switching modes:
+- morphs the radial background palette,
+- spins the intact central burger 720° with a motion-blur peak,
+- swaps the main 3D burger model or material/texture if a second real model/material exists,
+- causes the floating ingredient props to implode toward center, switch to the new garnish/ingredient
+  set, then explode back to fresh positions,
+- never breaks the burger apart.
+
+## Fixed visual direction
+
+Default theme — Charred Classic:
+- `--bg-inner: #7a3419`
+- `--bg-mid: #2e130c`
+- `--bg-outer: #090503`
+
+Alternate theme — Smoked Cheese:
+- `--bg-inner: #8b5f16`
+- `--bg-mid: #3a2208`
+- `--bg-outer: #0b0702`
+
+Accent:
+- warm cream `#f8e8ce`
+- dark text-on-accent `#24130a`
+
+Left copy:
+- eyebrow: `RESERVEURTIME / FIRE-GRILLED FAVORITES`
+- title:
+  `Stacked`
+  `to`
+  `satisfy`
+- body:
+  `A premium burger experience built around char, melt and a perfectly balanced bite.`
+- CTA: `Find a table`
+- badge title: `SIGNATURE HERO`
+- badge subtitle: `GOURMET BURGER EXPERIENCE`
+
+Right side title:
+- `Boldly`
+- `Layered`
+
+## Center 3D burger
+
+Use:
+
+```html
+<model-viewer id="burger-model"
+  src="BURGER_CLASSIC_GLB"
+  camera-controls
+  disable-zoom
+  interaction-prompt="none"
+  environment-image="neutral"
+  exposure="1.45"
+  shadow-intensity="0"
+  camera-orbit="0deg 84deg 320%"
+  field-of-view="28deg">
+</model-viewer>
+```
+
+Main model sizing:
+- width `78vw`
+- height `78vh`
+- center at `50% / 51%`
+- visual rotation via camera orbit, not CSS skew
+- pointer tilt:
+  - azimuth `mouseX * 34deg + switchSpin`
+  - polar `84 + mouseY * 16deg`
+  - orbit distance `320%`
+
+Idle float:
+- ±18px Y
+- 6.2s ease-in-out infinite
+
+## Floating 3D props
+
+Foreground:
+- tomato slice ×2
+- lettuce leaf ×2
+- pickle ×2
+- onion ring ×1
+- sesame cluster ×1
+
+Background:
+- lettuce ×1
+- tomato ×1
+- herb cluster ×1
+
+Each prop uses `<model-viewer>` with a real GLB:
+- `TOMATO_GLB`
+- `LETTUCE_GLB`
+- `PICKLE_GLB`
+- `ONION_GLB`
+- `SESAME_GLB`
+- `HERB_GLB`
+
+Do not use food images.
+
+Foreground sizes: 110–230px.
+Background sizes: 65–110px, opacity .55–.75.
+
+Pointer repulsion:
+- radius `380px`
+- strength `-74`
+- lerp `.1`
+- spin increment `.18 * speedMult`
+
+Parallax:
+- foreground container `mouse * 58px`
+- background container `mouse * -28px`
+- very-far herb layer `mouse * -14px`
+
+## Right selector cards
+
+Two cards:
+1. `Charred Classic`
+2. `Smoked Cheese`
+
+Each card can show only a real provided GLB/poster from the corresponding burger model.
+Do not use a Burger JPG/PNG/WebP.
+
+Switch choreography:
+- background morph duration `1.45s`, `power2.inOut`
+- burger spin phase 1: `0→360`, blur `0→13px`, `.58s`, `power2.in`
+- swap central model/material at peak
+- phase 2: `360→720`, blur `13→0`, `1.4s`, `back.out(.7)`
+
+Floating props:
+- implode to center `.48s`, scale `.12`, opacity 0
+- hold `.25s`
+- swap prop set if alternate assets exist
+- scatter to new ±95px offsets `.85s`, `back.out(1.45)`
+
+## Atmosphere
+
+Add:
+- very subtle warm dust particles,
+- faint heat haze using a blurred radial pseudo-element behind the burger,
+- no smoke clouds,
+- no flames covering the model.
+
+## Responsive
+
+<=1200:
+- central burger width `92vw`, height `62vh`
+- headline `5rem`
+- card group becomes smaller
+
+<=767:
+- copy top-left with max width 86vw
+- burger centered lower around 63% page height
+- only 4 floating props
+- cards become horizontal compact pills
+- secondary headline moves to bottom-right and scales to max `3.6rem`
+
+## Assets
+
+Required placeholders:
+- `BURGER_CLASSIC_GLB`
+- `BURGER_SMOKED_GLB`
+- `TOMATO_GLB`
+- `LETTUCE_GLB`
+- `PICKLE_GLB`
+- `ONION_GLB`
+- `SESAME_GLB`
+- `HERB_GLB`
+
+No JPG/PNG/WebP food image is allowed for the hero centerpiece.

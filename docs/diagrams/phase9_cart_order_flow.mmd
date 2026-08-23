@@ -1,0 +1,20 @@
+flowchart TD
+  A[Public DOM / 3D Menu] --> B[Add to cart]
+  B --> C{Customer logged in?}
+  C -- No --> D[Customer Login with returnTo]
+  C -- Yes --> E[POST /api/customer/cart/items]
+  E --> F{Same Restaurant?}
+  F -- No --> G[409 conflict + explicit replace confirmation]
+  F -- Yes --> H[Server-backed Cart]
+  G --> H
+  H --> I[/dashboard/cart]
+  I --> J[Server recalculates current prices]
+  J --> K[POST /api/customer/orders + checkoutKey]
+  K --> L[MongoDB transaction]
+  L --> M[Create immutable Order snapshot]
+  L --> N[Clear Cart]
+  M --> O[/dashboard/orders]
+  M --> P[/restaurant-admin/orders]
+  P --> Q[req.managedRestaurantId enforcement]
+  Q --> R[placed -> confirmed -> preparing -> ready -> completed]
+  R --> S[Phase 10: SSLCOMMERZ payment/refund rules]

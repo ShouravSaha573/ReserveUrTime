@@ -1,0 +1,21 @@
+flowchart TD
+  Browser[React browser client] -->|GET + credentialed API| API[Express API]
+  Browser -->|POST/PATCH/DELETE + trusted Origin + X-ReserveUrTime-Request| API
+  API --> Auth[JWT cookie + current User + authVersion]
+  Auth --> RBAC{Role / Restaurant scope}
+  RBAC --> Customer[Customer services]
+  RBAC --> Platform[Platform Admin services]
+  RBAC --> RestAdmin[Restaurant Admin services]
+  Customer --> Mongo[(MongoDB Atlas)]
+  Platform --> Mongo
+  RestAdmin --> Mongo
+  RestAdmin --> Safe3D[Bounded 3D animation config]
+  Safe3D --> Mongo
+
+  Phase10[Phase 10 SSLCOMMERZ implemented after gate] --> PayInit[Authenticated payment initiation]
+  PayInit -. server-authoritative Order total .-> SSL[SSLCOMMERZ Sandbox]
+  SSL -. IPN / callback .-> VerifiedRoute[Dedicated gateway callback]
+  VerifiedRoute -. validation API + amount/currency/transaction match .-> Mongo
+
+  note1[Do NOT exempt ordinary browser mutations from CSRF/origin controls]
+  note1 -.-> VerifiedRoute

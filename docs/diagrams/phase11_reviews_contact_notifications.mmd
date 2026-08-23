@@ -1,0 +1,24 @@
+flowchart TD
+    C[Customer / Public Visitor]
+    REV[Verified Review]
+    CM[Contact Message]
+    RA[Restaurant Admin]
+    PA[Platform Admin]
+    N[Notification]
+    PUB[Public Restaurant Reviews]
+
+    C -->|completed reservation or paid completed order| REV
+    REV --> PUB
+    REV -->|assigned restaurant only| RA
+    RA -->|reply only| REV
+    PA -->|hide / republish| REV
+    RA -->|reply event| N
+    PA -->|moderation event| N
+    N --> C
+
+    C -->|target=restaurant| CM
+    C -->|target=platform| CM
+    CM -->|restaurantId scope| RA
+    CM -->|platform target only| PA
+    RA -->|response| N
+    PA -->|response for signed-in customer| N

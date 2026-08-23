@@ -1,0 +1,68 @@
+{
+  "name": "reserveurtime-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/seed/seed.js",
+    "check": "node --check src/server.js",
+    "test:phase1": "node src/tests/phase1-rbac-smoke.js",
+    "test:management": "node src/tests/platform-admin-management-smoke.js",
+    "test:cms": "node src/tests/homepage-cms-smoke.js",
+    "test:phase3": "node src/tests/phase3-profile-approval-smoke.js",
+    "test:phase4": "node src/tests/phase4-operations-smoke.js",
+    "test:phase5": "node src/tests/phase5-public-experience-smoke.js",
+    "test:phase6": "node src/tests/phase6-3d-prototype-smoke.js",
+    "setup:phase6": "node src/seed/setupPhase6Prototype.js",
+    "diagnose:phase6": "node src/seed/diagnosePhase6Prototype.js",
+    "diagnose:auth": "node src/seed/diagnoseAdminCredentials.js",
+    "sync:admin-credentials": "node src/seed/syncAdminCredentials.js",
+    "test:phase7": "node src/tests/phase7-full-3d-menu-smoke.js",
+    "setup:phase7": "node src/seed/setupPhase7Full3DMenu.js",
+    "diagnose:phase7": "node src/seed/diagnosePhase7Full3DMenu.js",
+    "test:phase8": "node src/tests/phase8-customer-favourites-profile-smoke.js",
+    "test:phase9": "node src/tests/phase9-cart-orders-smoke.js",
+    "test:security": "node src/tests/security-baseline-smoke.js",
+    "test:flows": "node src/tests/flow-connection-smoke.js",
+    "audit:deps": "npm audit --audit-level=high",
+    "migrate:security": "node src/seed/migrateSecurityBaseline.js",
+    "audit:data-security": "node src/seed/auditSecurityData.js",
+    "test:phase10": "node src/tests/phase10-sslcommerz-payment-smoke.js",
+    "diagnose:phase10": "node src/seed/diagnosePhase10Payment.js",
+    "test:phase11": "node src/tests/phase11-reviews-contact-notifications-smoke.js",
+    "test:motion-photo": "node src/tests/motion-photo-explode-smoke.js",
+    "setup:motion-photo": "node src/seed/setupMotionPhotoExplode.js",
+    "test:phase12": "node src/tests/phase12-cinematic-ux-smoke.js",
+    "diagnose:restaurants": "node src/seed/diagnoseLocalRestaurants.js",
+    "test:local-runtime": "node src/tests/local-runtime-smoke.js",
+    "repair:demo-runtime": "node src/seed/repairDemoRuntime.js",
+    "diagnose:demo-runtime": "node src/seed/diagnoseDemoRuntime.js",
+    "test:dependency-baseline": "node src/tests/dependency-baseline-smoke.js",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "test:runtime-repair": "node src/tests/demo-runtime-repair-smoke.js",
+    "test:3d-core": "node src/tests/phase12-3d-core-runtime-smoke.js",
+    "test:hero-pivot": "node src/tests/homepage-hero-pivot-smoke.js"
+  },
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.5",
+    "dotenv": "16.4.7",
+    "express": "4.22.2",
+    "express-rate-limit": "7.5.0",
+    "helmet": "8.0.0",
+    "jsonwebtoken": "9.0.3",
+    "mongoose": "8.22.1",
+    "multer": "2.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "path-to-regexp": "0.1.13"
+  }
+}
