@@ -11,3 +11,6 @@ coverage/
 # Local development dish uploads. Production must use persistent object storage.
 frontend/public/uploads/menu-images/*
 !frontend/public/uploads/menu-images/.gitkeep
+
+.vercel
+.env*
