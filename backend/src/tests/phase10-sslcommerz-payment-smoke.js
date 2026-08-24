@@ -17,6 +17,9 @@ function walkFiles(dir) {
 
 const paymentModel = read("backend/src/models/PaymentAttempt.js");
 const orderModel = read("backend/src/models/Order.js");
+const reservationModel = read("backend/src/models/Reservation.js");
+const orderService = read("backend/src/services/orderService.js");
+const reservationRoutes = read("backend/src/routes/reservationRoutes.js");
 const paymentService = read("backend/src/services/paymentService.js");
 const paymentController = read("backend/src/controllers/paymentController.js");
 const paymentRoutes = read("backend/src/routes/paymentRoutes.js");
@@ -42,6 +45,13 @@ assert.match(paymentModel, /bankTransactionId:[\s\S]*?select:\s*false/);
 assert.match(orderModel, /activePaymentAttemptId/);
 assert.match(orderModel, /paymentTransactionId/);
 assert.match(orderModel, /paidAt/);
+assert.match(reservationModel, /status:[\s\S]*?default: "pending"/);
+assert.match(orderService, /status: "pending",[\s\S]*?heldUntil:[\s\S]*?paymentStatus: "unpaid"/);
+assert.match(reservationRoutes, /router\.post\("\/", checkoutReservation\)/);
+assert.doesNotMatch(reservationRoutes, /createReservation/);
+assert.match(paymentService, /Reservation\.findOne\(\{ orderId: attempt\.orderId \}\)/);
+assert.match(paymentService, /reservation\.status = "confirmed"/);
+assert.match(paymentService, /claimedReservation[\s\S]*?heldUntil: mongoose\.trusted\(\{ \$gt: new Date\(\) \}\)/);
 
 for (const token of [
   "gwprocess/v4/api.php",

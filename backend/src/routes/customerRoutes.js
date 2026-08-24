@@ -32,6 +32,7 @@ import {
 import { customerContactMessages, requestContactCode, verifyContactCode } from "../controllers/contactController.js";
 import { notifications, readAllNotifications, readNotification, unreadNotificationCount } from "../controllers/notificationController.js";
 import { contactLimiter } from "../middleware/security.js";
+import { createCustomerReservationMessage, getCustomerReservationConversation, getCustomerReservationUnreadCounts } from "../controllers/reservationMessageController.js";
 
 const router = Router();
 
@@ -66,6 +67,9 @@ router.delete("/cart", clearCart);
 router.get("/orders", customerOrders);
 router.post("/orders", createOrder);
 router.patch("/orders/:orderId/cancel", cancelOrder);
+router.get("/orders/message-unread-counts", getCustomerReservationUnreadCounts);
+router.get("/orders/:orderId/messages", getCustomerReservationConversation);
+router.post("/orders/:orderId/messages", contactLimiter, createCustomerReservationMessage);
 
 router.post("/orders/:orderId/payments/sslcommerz", initiateSslcommerz);
 router.get("/orders/:orderId/payments/sslcommerz", listSslcommerzAttempts);

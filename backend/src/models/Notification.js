@@ -13,7 +13,12 @@ const notificationSchema = new mongoose.Schema(
         "contact_received",
         "contact_reply",
         "order_status",
-        "reservation_status"
+        "reservation_status",
+        "reservation_message",
+        "payment_status",
+        "admin_request",
+        "request_status",
+        "platform_message"
       ],
       required: true,
       index: true

@@ -8,17 +8,9 @@ import {
   createReservationCheckout,
   releaseExpiredReservationHolds
 } from "../services/reservationPaymentService.js";
+import { availabilityForDate, RESERVATION_TIME_SLOTS, validateSelectedTables } from "../services/tableAvailabilityService.js";
 
-export const TIME_SLOTS = [
-  "18:00",
-  "18:30",
-  "19:00",
-  "19:30",
-  "20:00",
-  "20:30",
-  "21:00",
-  "21:30"
-];
+export const TIME_SLOTS = RESERVATION_TIME_SLOTS;
 
 function earliestReservationDate() {
   const nowInDhaka = new Intl.DateTimeFormat("en-CA", {
@@ -75,21 +67,7 @@ export async function validateRequestData({
   if (!restaurant) {
     return { error: "Restaurant is unavailable." };
   }
-
-  const tables = await DiningTable.find({
-    restaurantId,
-    isActive: true,
-    status: "available",
-    capacity: mongoose.trusted({ $gte: guests })
-  })
-    .sort({ capacity: 1, tableNumber: 1 })
-    .lean();
-
-  if (!tables.length) {
-    return { error: "No table can support this guest count." };
-  }
-
-  return { restaurant, tables, guests };
+  return { restaurant, guests };
 }
 
 export const checkAvailability = asyncHandler(async (req, res) => {
@@ -99,44 +77,17 @@ export const checkAvailability = asyncHandler(async (req, res) => {
     timeSlot: req.query.timeSlot,
     guestCount: req.query.guestCount
   };
-
   const validated = await validateRequestData(data);
-
-  if (validated.error) {
-    return res.status(400).json({ message: validated.error });
-  }
-
+  if (validated.error) return res.status(400).json({ message: validated.error });
   await releaseExpiredReservationHolds();
-
-  const tableIds = validated.tables.map((table) => table._id);
-
-  const occupied = await Reservation.find({
-    tableId: mongoose.trusted({ $in: tableIds }),
-    reservationDate: data.reservationDate,
-    timeSlot: data.timeSlot,
-    $or: [
-      { status: "confirmed" },
-      { status: "pending", heldUntil: mongoose.trusted({ $gt: new Date() }) }
-    ]
-  })
-    .select("tableId")
-    .lean();
-
-  const occupiedIds = new Set(
-    occupied.map((reservation) => reservation.tableId.toString())
-  );
-
-  const availableTables = validated.tables.filter(
-    (table) => !occupiedIds.has(table._id.toString())
-  );
-
-  res.json({
-    available: availableTables.length > 0,
-    availableTableCount: availableTables.length,
-    timeSlot: data.timeSlot
+  const availability = await availabilityForDate({
+    restaurantId: validated.restaurant._id,
+    date: data.reservationDate,
+    guestCount: validated.guests
   });
+  const selectedSlot = availability.slots.find((slot) => slot.timeSlot === data.timeSlot);
+  res.json({ ...availability, ...selectedSlot, guestCount: validated.guests, date: data.reservationDate });
 });
-
 export const createReservation = asyncHandler(async (req, res) => {
   const data = {
     restaurantId: req.body.restaurantId,
@@ -144,80 +95,32 @@ export const createReservation = asyncHandler(async (req, res) => {
     timeSlot: req.body.timeSlot,
     guestCount: req.body.guestCount
   };
-
   const validated = await validateRequestData(data);
-
-  if (validated.error) {
-    return res.status(400).json({ message: validated.error });
-  }
-
+  if (validated.error) return res.status(400).json({ message: validated.error });
   await releaseExpiredReservationHolds();
-
-  const existingActiveReservation = await Reservation.exists({
-    userId: req.user._id,
-    restaurantId: validated.restaurant._id,
-    reservationDate: data.reservationDate,
-    timeSlot: data.timeSlot,
-    status: mongoose.trusted({ $in: ["pending", "confirmed"] })
-  });
-
-  if (existingActiveReservation) {
-    return res.status(409).json({
-      message: "You already have an active reservation for this Restaurant, date and time."
+  const existing = await Reservation.exists({ userId: req.user._id, restaurantId: validated.restaurant._id, reservationDate: data.reservationDate, timeSlot: data.timeSlot, status: mongoose.trusted({ $in: ["pending", "confirmed"] }) });
+  if (existing) return res.status(409).json({ message: "You already have an active reservation for this Restaurant, date and time." });
+  const availability = await availabilityForDate({ restaurantId: validated.restaurant._id, date: data.reservationDate, guestCount: validated.guests });
+  const slot = availability.slots.find((entry) => entry.timeSlot === data.timeSlot);
+  const selection = validateSelectedTables(slot, req.body.selectedTableIds || slot.recommendedTableIds, validated.guests);
+  if (selection.error) return res.status(409).json({ message: selection.error });
+  try {
+    const reservation = await Reservation.create({
+      bookingReference: bookingReference(), userId: req.user._id, restaurantId: validated.restaurant._id,
+      tableId: selection.selectedIds[0], tableIds: selection.selectedIds,
+      reservationDate: data.reservationDate, timeSlot: data.timeSlot, guestCount: validated.guests, status: "confirmed",
+      reservationKey: `${selection.selectedIds[0]}:${data.reservationDate}:${data.timeSlot}`,
+      reservationKeys: selection.selectedIds.map((id) => `${id}:${data.reservationDate}:${data.timeSlot}`),
+      customerSlotKey: `${req.user._id}:${validated.restaurant._id}:${data.reservationDate}:${data.timeSlot}`
     });
+    const populated = await Reservation.findById(reservation._id).populate("restaurantId", "name slug location").populate("tableId", "tableNumber capacity area")
+    .populate("tableIds", "tableNumber capacity area").populate("tableIds", "tableNumber capacity area").lean();
+    return res.status(201).json({ message: "Reservation confirmed.", reservation: populated });
+  } catch (error) {
+    if (error?.code === 11000) return res.status(409).json({ message: "One of those tables was just booked. Choose another available table." });
+    throw error;
   }
-
-  // Try suitable tables from smallest to largest.
-  // The unique reservationKey makes competing requests safe: only one insert wins.
-  for (const table of validated.tables) {
-    const reservationKey = `${table._id}:${data.reservationDate}:${data.timeSlot}`;
-
-    try {
-      const customerSlotKey =
-        `${req.user._id}:${validated.restaurant._id}:${data.reservationDate}:${data.timeSlot}`;
-
-      const reservation = await Reservation.create({
-        bookingReference: bookingReference(),
-        userId: req.user._id,
-        restaurantId: validated.restaurant._id,
-        tableId: table._id,
-        reservationDate: data.reservationDate,
-        timeSlot: data.timeSlot,
-        guestCount: validated.guests,
-        status: "confirmed",
-        reservationKey,
-        customerSlotKey
-      });
-
-      const populated = await Reservation.findById(reservation._id)
-        .populate("restaurantId", "name slug location")
-        .populate("tableId", "tableNumber capacity area")
-        .lean();
-
-      return res.status(201).json({
-        message: "Reservation confirmed.",
-        reservation: populated
-      });
-    } catch (error) {
-      // Another request may have taken this exact table/date/slot first.
-      if (error?.code === 11000) {
-        if (error?.keyPattern?.customerSlotKey) {
-          return res.status(409).json({
-            message: "You already have an active reservation for this Restaurant, date and time."
-          });
-        }
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  return res.status(409).json({
-    message:
-      "That time slot just became unavailable. Please choose another time."
-  });
 });
-
 export const checkoutReservation = asyncHandler(async (req, res) => {
   const result = await createReservationCheckout(req.body, req.user);
   res.status(result.reused ? 200 : 201).json({
@@ -230,6 +133,7 @@ export const myReservations = asyncHandler(async (req, res) => {
   const reservations = await Reservation.find({ userId: req.user._id })
     .populate("restaurantId", "name slug location")
     .populate("tableId", "tableNumber capacity area")
+    .populate("tableIds", "tableNumber capacity area")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -249,12 +153,13 @@ export const cancelReservation = asyncHandler(async (req, res) => {
     },
     {
       $set: { status: "cancelled" },
-      $unset: { reservationKey: 1, customerSlotKey: 1 }
+      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
     },
     { new: true, runValidators: true }
   )
     .populate("restaurantId", "name slug location")
     .populate("tableId", "tableNumber capacity area")
+    .populate("tableIds", "tableNumber capacity area")
     .lean();
 
   if (!reservation) {

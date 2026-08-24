@@ -1,4 +1,4 @@
-import { motion, useAnimationFrame, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
+import { motion, useAnimationFrame, useMotionValue, useReducedMotion, useSpring, useInView, useTransform } from "motion/react";
 import { useRef } from "react";
 
 const FOOD_IMAGES = {
@@ -39,6 +39,8 @@ function IngredientAtmosphere({ variant }) {
 
 export default function PhotorealFoodHero({ variant, title }) {
   const reduced = useReducedMotion();
+  const photoRef = useRef(null);
+  const visible = useInView(photoRef, { margin: "200px 0px" });
   const src = FOOD_IMAGES[variant] || FOOD_IMAGES.burger;
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
@@ -54,6 +56,7 @@ export default function PhotorealFoodHero({ variant, title }) {
   const dragStart = useRef({ x: 0, yaw: 0 });
 
   useAnimationFrame((time) => {
+    if (!visible) return;
     if (!reduced && !dragging.current) idleYaw.set(Math.sin(time / 1900) * 5.5);
   });
 
@@ -80,6 +83,7 @@ export default function PhotorealFoodHero({ variant, title }) {
 
   return (
     <motion.div
+      ref={photoRef}
       className={`food3d-photo food3d-photo-${variant}`}
       role="img"
       aria-label={`${title} photoreal animated food showcase`}

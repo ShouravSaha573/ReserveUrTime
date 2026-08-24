@@ -19,7 +19,7 @@ export const DEFAULT_SITE_CONTENT = {
     registerCtaLabel: "Create customer account",
     registerCtaPath: "/customer/register",
     searchEnabled: true,
-    searchPlaceholder: "Search a restaurant or cuisine...",
+    searchPlaceholder: "Search restaurants, food, categories or locations...",
     mediaUrl: ""
   },
   restaurantsSection: {

@@ -31,7 +31,7 @@ export default function RestaurantCard({ restaurant, index = 0 }) {
 
         <div className="flex flex-wrap items-center gap-3">
           <Link to={`/restaurant/${restaurant.slug}`} className="cinematic-text-link inline-flex items-center gap-3 text-sm uppercase tracking-[.18em] text-[#f3efe6]">
-            Explore restaurant <LottieFlowIcon name="arrow" className="arrow rotate-180" />
+            Explore restaurant <LottieFlowIcon name="arrow" className="arrow" />
           </Link>
         </div>
       </div>

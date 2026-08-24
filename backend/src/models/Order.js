@@ -78,7 +78,10 @@ const orderSchema = new mongoose.Schema(
       timeSlot: { type: String, default: "", maxlength: 5 },
       guestCount: { type: Number, min: 1, max: 12 },
       tableNumber: { type: String, default: "", maxlength: 40 },
-      tableArea: { type: String, default: "", maxlength: 80 }
+      tableArea: { type: String, default: "", maxlength: 80 },
+      tableNumbers: { type: [String], default: undefined },
+      tableAreas: { type: [String], default: undefined },
+      requiredTableCount: { type: Number, min: 1, max: 3 }
     },
     items: {
       type: [orderItemSchema],

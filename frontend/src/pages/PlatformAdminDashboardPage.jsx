@@ -45,20 +45,27 @@ export default function PlatformAdminDashboardPage() {
 
       <PlatformAdminSectionNav />
 
-      <div className="admin-metric-grid mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          ["Customers", summary?.customers ?? "—"],
-          ["Restaurants", summary?.restaurants ?? "—"],
-          ["Restaurant Admins", summary?.restaurantAdmins ?? "—"],
-          ["Reservations", summary?.reservations ?? "—"]
-        ].map(([label, value]) => (
-          <div key={label} className="surface rounded-3xl p-6">
-            <p className="text-sm text-white/40">{label}</p>
-            <p className="mt-3 font-display text-5xl">{loading ? "…" : value}</p>
-          </div>
-        ))}
-      </div>
-
+      <section className="admin-summary mt-12" aria-labelledby="platform-overview-title">
+        <div className="admin-summary-heading">
+          <p className="text-xs uppercase tracking-[.25em] text-white/35">Platform overview</p>
+          <h2 id="platform-overview-title" className="mt-2 font-display text-4xl">Activity at a glance</h2>
+          <p>Current totals across the ReserveUrTime platform.</p>
+        </div>
+        <div className="admin-summary-grid">
+          {[
+            ["Registered guests", summary?.customers ?? "—", "Guest accounts currently registered"],
+            ["Listed restaurants", summary?.restaurants ?? "—", "Restaurants managed on the platform"],
+            ["Restaurant administrator accounts", summary?.restaurantAdmins ?? "—", "Admin accounts assigned to restaurants"],
+            ["Total guest reservations", summary?.reservations ?? "—", "Reservations recorded across all restaurants"]
+          ].map(([label, value, description]) => (
+            <article key={label} className="admin-summary-item">
+              <p>{label}</p>
+              <strong>{loading ? "…" : value}</strong>
+              <small>{description}</small>
+            </article>
+          ))}
+        </div>
+      </section>
       <RestaurantManagement
         restaurants={restaurants}
         onChanged={loadDashboard}

@@ -21,7 +21,7 @@ export async function releaseExpiredReservationHolds({ session } = {}) {
     },
     {
       $set: { status: "cancelled", paymentStatus: "failed" },
-      $unset: { reservationKey: 1, customerSlotKey: 1 }
+      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
     }
   );
   if (session) query.session(session);
@@ -46,7 +46,15 @@ async function validateRequestData(body) {
 
 async function gatewayFetch(url, options) {
   let response;
-  try { response = await fetch(url, { ...options, redirect: "error", signal: AbortSignal.timeout(12000) }); }
+  try {
+    response = await fetch(url, {
+      ...options,
+      redirect: "error",
+      // Keep this aligned with the Order checkout service. The SSLCOMMERZ
+      // sandbox is often slower than live and can legitimately exceed 12s.
+      signal: AbortSignal.timeout(30_000)
+    });
+  }
   catch { throw fail("Payment gateway is temporarily unavailable.", 502); }
   if (!response.ok) throw fail(`Payment gateway returned HTTP ${response.status}.`, 502);
   try { return await response.json(); } catch { throw fail("Payment gateway returned an unreadable response.", 502); }
@@ -118,7 +126,7 @@ export async function createReservationCheckout(body, user) {
   } catch (error) {
     await Promise.all([
       ReservationPaymentAttempt.updateOne({ _id: attempt._id }, { $set: { status: "failed", failureReason: clean(error.message, 240) } }),
-      Reservation.updateOne({ _id: reservation._id }, { $set: { status: "cancelled", paymentStatus: "failed" }, $unset: { reservationKey: 1, customerSlotKey: 1 } })
+      Reservation.updateOne({ _id: reservation._id }, { $set: { status: "cancelled", paymentStatus: "failed" }, $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 } })
     ]);
     throw error;
   }
@@ -152,7 +160,7 @@ export async function processReservationPayment(payload) {
   }
   const outcome = Number(record?.risk_level || 0) === 1 ? "risk_hold" : "failed";
   await ReservationPaymentAttempt.updateOne({ _id: attempt._id }, { $set: { status: outcome, gatewayStatus: status || "FAILED" } });
-  if (outcome === "failed") await Reservation.updateOne({ _id: reservation._id }, { $set: { status: "cancelled", paymentStatus: "failed" }, $unset: { reservationKey: 1, customerSlotKey: 1 } });
+  if (outcome === "failed") await Reservation.updateOne({ _id: reservation._id }, { $set: { status: "cancelled", paymentStatus: "failed" }, $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 } });
   return { outcome, attempt, reference: reservation.bookingReference };
 }
 

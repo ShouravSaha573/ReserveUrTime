@@ -28,7 +28,7 @@ const siteContentSchema = new mongoose.Schema(
       registerCtaLabel: { type: String, default: "", maxlength: 80 },
       registerCtaPath: { type: String, default: "/customer/register", maxlength: 180 },
       searchEnabled: { type: Boolean, default: true },
-      searchPlaceholder: { type: String, default: "Search a restaurant or cuisine...", maxlength: 120 },
+      searchPlaceholder: { type: String, default: "Search restaurants, food, categories or locations...", maxlength: 120 },
       mediaUrl: { type: String, default: "", maxlength: 900 }
     },
     restaurantsSection: {

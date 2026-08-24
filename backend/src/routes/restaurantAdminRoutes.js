@@ -21,8 +21,12 @@ import {
   createMenuItem,
   listDiningTables,
   listGalleryItems,
+  listRemovedResources,
+  restoreRemovedResource,
+  moveGalleryItem,
   listMenuCategories,
   listMenuItems,
+  moveMenuCategory,
   listRestaurantReservations,
   removeDiningTable,
   removeGalleryItem,
@@ -46,6 +50,13 @@ import {
   requireRestaurantAdmin,
   requireManagedRestaurant
 } from "../middleware/auth.js";
+import { restaurantAdminConversation, sendRestaurantAdminMessage, adminMessageUnreadCount } from "../controllers/adminMessageController.js";
+import {
+  createRestaurantReservationMessage,
+  getRestaurantReservationConversation,
+  getRestaurantReservationConversations,
+  getRestaurantReservationUnreadCount
+} from "../controllers/reservationMessageController.js";
 
 const router = Router();
 
@@ -56,6 +67,8 @@ router.use(
 );
 
 router.get("/summary", restaurantAdminSummary);
+router.get("/trash", listRemovedResources);
+router.patch("/trash/:resourceType/:resourceId/restore", restoreRemovedResource);
 router.get("/me/restaurant", getManagedRestaurant);
 router.get("/profile", getRestaurantProfile);
 router.patch("/profile", updateRestaurantProfile);
@@ -71,6 +84,7 @@ router.post(
 router.get("/menu/categories", listMenuCategories);
 router.post("/menu/categories", createMenuCategory);
 router.patch("/menu/categories/:categoryId", updateMenuCategory);
+router.patch("/menu/categories/:categoryId/move", moveMenuCategory);
 router.delete("/menu/categories/:categoryId", removeMenuCategory);
 
 router.get("/menu/items", listMenuItems);
@@ -93,6 +107,13 @@ router.patch("/reviews/:reviewId/reply", replyReview);
 
 router.get("/messages", restaurantContactMessages);
 router.patch("/messages/:messageId", reviewRestaurantContactMessage);
+router.get("/admin-messages/unread-count", adminMessageUnreadCount);
+router.get("/admin-messages", restaurantAdminConversation);
+router.post("/admin-messages", sendRestaurantAdminMessage);
+router.get("/reservation-messages/unread-count", getRestaurantReservationUnreadCount);
+router.get("/reservation-messages", getRestaurantReservationConversations);
+router.get("/reservation-messages/:orderId", getRestaurantReservationConversation);
+router.post("/reservation-messages/:orderId", createRestaurantReservationMessage);
 
 router.get("/notifications", notifications);
 router.get("/notifications/unread-count", unreadNotificationCount);
@@ -109,6 +130,7 @@ router.get("/gallery", listGalleryItems);
 router.post("/gallery/image", menuImageUpload.single("image"), uploadRestaurantAdminGalleryImage);
 router.post("/gallery", createGalleryItem);
 router.patch("/gallery/:galleryItemId", updateGalleryItem);
+router.patch("/gallery/:galleryItemId/move", moveGalleryItem);
 router.delete("/gallery/:galleryItemId", removeGalleryItem);
 
 export default router;

@@ -42,6 +42,19 @@ export async function notifyRestaurantAdmins(restaurantId, payload) {
   );
 }
 
+export async function notifyPlatformAdmins(payload) {
+  const admins = await User.find({ role: "platform_admin", isActive: true }).select("_id").lean();
+  if (!admins.length) return [];
+  return Notification.insertMany(admins.map((admin) => ({
+    recipientUserId: admin._id,
+    restaurantId: payload.restaurantId || null,
+    type: payload.type,
+    title: String(payload.title || "Update").slice(0, 120),
+    message: String(payload.message || "").slice(0, 320),
+    href: safeHref(payload.href)
+  })), { ordered: false });
+}
+
 export async function listNotifications(userId, { limit = 60 } = {}) {
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 60));
   const notifications = await Notification.find({ recipientUserId: userId })

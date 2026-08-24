@@ -54,7 +54,6 @@ export default function PlatformAdminChangeRequestsPage() {
     <main className="admin-workspace mx-auto max-w-7xl px-6 py-12 md:px-8 md:py-16">
       <p className="text-xs uppercase tracking-[.3em] text-white/35">Platform Admin · Approval inbox</p>
       <h1 className="mt-4 font-display text-5xl md:text-7xl">Restaurant listing requests</h1>
-      <p className="mt-5 max-w-3xl leading-7 text-white/55">Review Restaurant Admin requests for the public Restaurant name or homepage/Restaurants-tab image. Approval applies the change immediately to the Restaurant listing record.</p>
       <PlatformAdminSectionNav />
 
       <div className="mt-8 flex flex-wrap gap-2">

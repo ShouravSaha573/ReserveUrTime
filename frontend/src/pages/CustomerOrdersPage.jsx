@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import CustomerDashboardNav from "../components/CustomerDashboardNav";
 import PageMessage from "../components/PageMessage";
 import { apiFetch } from "../lib/api";
+import ReservationConversation from "../components/ReservationConversation";
 
 const ACTIVE = new Set(["placed", "confirmed", "preparing", "ready"]);
 
@@ -33,12 +34,17 @@ export default function CustomerOrdersPage() {
   const banner = paymentBanner(payment, paymentOrder);
 
   const [orders, setOrders] = useState([]);
+  const [messageUnread, setMessageUnread] = useState({});
   const [state, setState] = useState({ loading: true, error: "", busyId: "" });
 
   async function load() {
     try {
-      const payload = await apiFetch("/customer/orders", { retryGet: false });
+      const [payload, unreadData] = await Promise.all([
+        apiFetch("/customer/orders", { retryGet: false }),
+        apiFetch("/customer/orders/message-unread-counts", { retryGet: false })
+      ]);
       setOrders(payload.orders || []);
+      setMessageUnread(unreadData.unreadByOrder || {});
       setState({ loading: false, error: "", busyId: "" });
     } catch (error) {
       setState({ loading: false, error: error.message, busyId: "" });
@@ -47,7 +53,18 @@ export default function CustomerOrdersPage() {
 
   useEffect(() => {
     load();
+    const refreshUnread = async () => {
+      if (document.visibilityState !== "visible") return;
+      try { const data = await apiFetch("/customer/orders/message-unread-counts", { retryGet: false }); setMessageUnread(data.unreadByOrder || {}); } catch { /* Preserve the loaded orders while offline. */ }
+    };
+    const timer = window.setInterval(refreshUnread, 10000);
+    document.addEventListener("visibilitychange", refreshUnread);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshUnread); };
   }, []);
+
+  function markConversationRead(orderId) {
+    setMessageUnread((current) => ({ ...current, [orderId]: 0 }));
+  }
 
   const activeCount = useMemo(
     () => orders.filter((order) => ACTIVE.has(order.status)).length,
@@ -76,13 +93,15 @@ export default function CustomerOrdersPage() {
       const payload = await apiFetch(`/customer/orders/${orderReference}/payments/sslcommerz`, {
         method: "POST",
         retryGet: false,
-        body: { paymentKey: createPaymentKey() }
+        body: { paymentKey: createPaymentKey() },
+        timeoutMs: 40_000
       });
       if (payload.alreadyPaid) {
         await load();
         return;
       }
       if (!payload.gatewayUrl) throw new Error("SSLCOMMERZ payment page was not returned.");
+      // Browser redirects alone never mark an Order paid; only the validated server callback does.
       window.location.assign(payload.gatewayUrl);
     } catch (error) {
       setState((current) => ({ ...current, busyId: "", error: error.message }));
@@ -166,6 +185,8 @@ export default function CustomerOrdersPage() {
               </div>
 
               {order.notes && <p className="mt-5 text-sm leading-6 text-white/45">Note: {order.notes}</p>}
+
+              {order.reservationSnapshot?.bookingReference ? <ReservationConversation order={order} unreadCount={messageUnread[order._id] || 0} onRead={markConversationRead} /> : null}
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
                 {order.paymentStatus !== "pending" && (

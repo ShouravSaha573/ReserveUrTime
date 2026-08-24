@@ -2,7 +2,7 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import { ContactMessage } from "../models/ContactMessage.js";
 import { Restaurant } from "../models/Restaurant.js";
-import { createNotification, notifyRestaurantAdmins } from "./notificationService.js";
+import { createNotification, notifyPlatformAdmins, notifyRestaurantAdmins } from "./notificationService.js";
 import { isValidEmail, normalizeEmail } from "../utils/validation.js";
 
 function reference() {
@@ -69,6 +69,13 @@ export async function createContactMessage({ user = null, body, verifiedIdentity
       title: "New Customer message",
       message: `A new message was sent to ${restaurant.name}.`,
       href: "/restaurant-admin/messages"
+    });
+  } else {
+    await notifyPlatformAdmins({
+      type: "platform_message",
+      title: "New platform message",
+      message: "A new message was sent to Platform Admin.",
+      href: "/platform-admin/messages"
     });
   }
 

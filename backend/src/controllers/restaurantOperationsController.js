@@ -5,6 +5,7 @@ import { DiningTable } from "../models/DiningTable.js";
 import { Reservation } from "../models/Reservation.js";
 import { GalleryItem } from "../models/GalleryItem.js";
 import { Restaurant } from "../models/Restaurant.js";
+import { Cart } from "../models/Cart.js";
 import { PHASE7_THREE_D_CONFIGS, buildPhase7RuntimeAsset } from "../config/phase7ThreeDConfigs.js";
 import { writeAuditLog } from "../services/auditService.js";
 import {
@@ -38,9 +39,10 @@ async function hasFutureReservation(tableId) {
 
 export const listMenuCategories = asyncHandler(async (req, res) => {
   const categories = await MenuCategory.find({
-    restaurantId: req.managedRestaurantId
+    restaurantId: req.managedRestaurantId,
+    isActive: true
   })
-    .sort({ isActive: -1, displayOrder: 1, name: 1 })
+    .sort({ displayOrder: 1, name: 1 })
     .lean();
 
   res.json({ categories });
@@ -48,6 +50,11 @@ export const listMenuCategories = asyncHandler(async (req, res) => {
 
 export const createMenuCategory = asyncHandler(async (req, res) => {
   const payload = menuCategoryPayload(req.body);
+  const lastCategory = await MenuCategory.findOne({ restaurantId: req.managedRestaurantId, isActive: true })
+    .sort({ displayOrder: -1 })
+    .select("displayOrder")
+    .lean();
+  payload.displayOrder = Number(lastCategory?.displayOrder || 0) + 10;
   const category = await MenuCategory.create({
     restaurantId: req.managedRestaurantId,
     ...payload
@@ -87,33 +94,31 @@ export const updateMenuCategory = asyncHandler(async (req, res) => {
   res.json({ message: "Menu category updated.", category });
 });
 
+export const moveMenuCategory = asyncHandler(async (req, res) => {
+  const direction = String(req.body.direction || "");
+  if (!["earlier", "later"].includes(direction)) return res.status(400).json({ message: "Move direction must be earlier or later." });
+  const categories = await MenuCategory.find({ restaurantId: req.managedRestaurantId, isActive: true })
+    .sort({ displayOrder: 1, name: 1 })
+    .select("_id displayOrder")
+    .lean();
+  const index = categories.findIndex((category) => String(category._id) === String(req.params.categoryId));
+  if (index < 0) return res.status(404).json({ message: "Active menu category not found." });
+  const targetIndex = direction === "earlier" ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= categories.length) return res.json({ message: "Category is already at that edge." });
+  [categories[index], categories[targetIndex]] = [categories[targetIndex], categories[index]];
+  await MenuCategory.bulkWrite(categories.map((category, position) => ({ updateOne: { filter: { _id: category._id, restaurantId: req.managedRestaurantId }, update: { $set: { displayOrder: (position + 1) * 10 } } } })));
+  res.json({ message: direction === "earlier" ? "Category moved earlier." : "Category moved later." });
+});
 export const removeMenuCategory = asyncHandler(async (req, res) => {
   const query = scopedIdQuery(req, req.params.categoryId);
-  const category = await MenuCategory.findOneAndUpdate(
-    query,
-    { $set: { isActive: false } },
-    { new: true }
-  );
-
-  if (!category) {
-    return res.status(404).json({ message: "Menu category not found." });
-  }
-
-  await writeAuditLog(req, {
-    action: "menu_category.remove",
-    entityType: "MenuCategory",
-    entityId: category._id,
-    changes: { isActive: false }
-  });
-
-  res.json({
-    message: "Menu category removed from the active menu. Existing dish data is preserved.",
-    category
-  });
+  const category = await MenuCategory.findOneAndUpdate(query, { $set: { isActive: false } }, { new: true });
+  if (!category) return res.status(404).json({ message: "Menu category not found." });
+  await MenuItem.updateMany({ restaurantId: req.managedRestaurantId, categoryId: category._id }, { $set: { isActive: false, isAvailable: false } });
+  await writeAuditLog(req, { action: "menu_category.remove", entityType: "MenuCategory", entityId: category._id, changes: { movedToTrash: true } });
+  res.json({ message: "Menu category and its dishes moved to Trash." });
 });
-
 export const listMenuItems = asyncHandler(async (req, res) => {
-  const query = { restaurantId: req.managedRestaurantId };
+  const query = { restaurantId: req.managedRestaurantId, isActive: true };
 
   if (req.query.categoryId) {
     assertObjectId(req.query.categoryId, "category id");
@@ -169,6 +174,14 @@ export const listMenuItems = asyncHandler(async (req, res) => {
 export const createMenuItem = asyncHandler(async (req, res) => {
   const payload = menuItemPayload(req.body);
   await ensureOwnedCategory(req.managedRestaurantId, payload.categoryId);
+  const lastItem = await MenuItem.findOne({
+    restaurantId: req.managedRestaurantId,
+    categoryId: payload.categoryId
+  })
+    .sort({ displayOrder: -1 })
+    .select("displayOrder")
+    .lean();
+  payload.displayOrder = Number(lastItem?.displayOrder || 0) + 10;
 
   const item = await MenuItem.create({
     restaurantId: req.managedRestaurantId,
@@ -198,6 +211,14 @@ export const updateMenuItem = asyncHandler(async (req, res) => {
 
   if (payload.categoryId) {
     await ensureOwnedCategory(req.managedRestaurantId, payload.categoryId);
+  const lastItem = await MenuItem.findOne({
+    restaurantId: req.managedRestaurantId,
+    categoryId: payload.categoryId
+  })
+    .sort({ displayOrder: -1 })
+    .select("displayOrder")
+    .lean();
+  payload.displayOrder = Number(lastItem?.displayOrder || 0) + 10;
   }
 
   const item = await MenuItem.findOneAndUpdate(
@@ -233,31 +254,18 @@ export const updateMenuItem = asyncHandler(async (req, res) => {
 
 export const removeMenuItem = asyncHandler(async (req, res) => {
   const query = scopedIdQuery(req, req.params.itemId);
-  const item = await MenuItem.findOneAndUpdate(
-    query,
-    { $set: { isActive: false, isAvailable: false } },
-    { new: true }
-  );
-
-  if (!item) {
-    return res.status(404).json({ message: "Dish not found." });
-  }
-
-  await writeAuditLog(req, {
-    action: "menu_item.remove",
-    entityType: "MenuItem",
-    entityId: item._id,
-    changes: { isActive: false, isAvailable: false }
-  });
-
-  res.json({ message: "Dish removed from the active menu.", item });
+  const item = await MenuItem.findOneAndUpdate(query, { $set: { isActive: false, isAvailable: false } }, { new: true });
+  if (!item) return res.status(404).json({ message: "Dish not found." });
+  await Cart.updateMany({ "items.menuItemId": item._id }, { $pull: { items: { menuItemId: item._id } } });
+  await writeAuditLog(req, { action: "menu_item.remove", entityType: "MenuItem", entityId: item._id, changes: { movedToTrash: true } });
+  res.json({ message: "Dish moved to Trash." });
 });
-
 export const listDiningTables = asyncHandler(async (req, res) => {
   const tables = await DiningTable.find({
-    restaurantId: req.managedRestaurantId
+    restaurantId: req.managedRestaurantId,
+    isActive: true
   })
-    .sort({ isActive: -1, area: 1, tableNumber: 1 })
+    .sort({ area: 1, tableNumber: 1 })
     .lean();
 
   res.json({ tables });
@@ -331,10 +339,10 @@ export const removeDiningTable = asyncHandler(async (req, res) => {
     action: "dining_table.remove",
     entityType: "DiningTable",
     entityId: table._id,
-    changes: { isActive: false, status: "maintenance" }
+    changes: { movedToTrash: true }
   });
 
-  res.json({ message: "Dining table removed from active service.", table });
+  res.json({ message: "Dining table moved to Trash." });
 });
 
 export const listRestaurantReservations = asyncHandler(async (req, res) => {
@@ -358,6 +366,7 @@ export const listRestaurantReservations = asyncHandler(async (req, res) => {
   const reservations = await Reservation.find(query)
     .populate("userId", "name email phone")
     .populate("tableId", "tableNumber capacity area isActive status")
+    .populate("tableIds", "tableNumber capacity area isActive status")
     .sort({ reservationDate: -1, timeSlot: -1, createdAt: -1 })
     .limit(250)
     .lean();
@@ -434,6 +443,7 @@ export const updateRestaurantReservationStatus = asyncHandler(async (req, res) =
   const populated = await Reservation.findById(reservation._id)
     .populate("userId", "name email phone")
     .populate("tableId", "tableNumber capacity area isActive status")
+    .populate("tableIds", "tableNumber capacity area isActive status")
     .lean();
 
   res.json({ message: `Reservation marked ${nextStatus}.`, reservation: populated });
@@ -441,9 +451,10 @@ export const updateRestaurantReservationStatus = asyncHandler(async (req, res) =
 
 export const listGalleryItems = asyncHandler(async (req, res) => {
   const items = await GalleryItem.find({
-    restaurantId: req.managedRestaurantId
+    restaurantId: req.managedRestaurantId,
+    isActive: true
   })
-    .sort({ isActive: -1, displayOrder: 1, createdAt: -1 })
+    .sort({ displayOrder: 1, createdAt: -1 })
     .lean();
 
   res.json({ items });
@@ -451,6 +462,11 @@ export const listGalleryItems = asyncHandler(async (req, res) => {
 
 export const createGalleryItem = asyncHandler(async (req, res) => {
   const payload = galleryItemPayload(req.body);
+  const lastItem = await GalleryItem.findOne({ restaurantId: req.managedRestaurantId })
+    .sort({ displayOrder: -1 })
+    .select("displayOrder")
+    .lean();
+  payload.displayOrder = Number(lastItem?.displayOrder || 0) + 10;
   const item = await GalleryItem.create({
     restaurantId: req.managedRestaurantId,
     ...payload
@@ -466,6 +482,30 @@ export const createGalleryItem = asyncHandler(async (req, res) => {
   res.status(201).json({ message: "Gallery item created.", item });
 });
 
+export const moveGalleryItem = asyncHandler(async (req, res) => {
+  const direction = String(req.body.direction || "");
+  if (!["earlier", "later"].includes(direction)) {
+    return res.status(400).json({ message: "Move direction must be earlier or later." });
+  }
+  const items = await GalleryItem.find({ restaurantId: req.managedRestaurantId, isActive: true })
+    .sort({ displayOrder: 1, createdAt: 1 })
+    .select("_id displayOrder")
+    .lean();
+  const index = items.findIndex((item) => String(item._id) === String(req.params.galleryItemId));
+  if (index < 0) return res.status(404).json({ message: "Active gallery item not found." });
+  const targetIndex = direction === "earlier" ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= items.length) {
+    return res.json({ message: "Gallery item is already at that edge." });
+  }
+  [items[index], items[targetIndex]] = [items[targetIndex], items[index]];
+  await GalleryItem.bulkWrite(items.map((item, position) => ({
+    updateOne: {
+      filter: { _id: item._id, restaurantId: req.managedRestaurantId },
+      update: { $set: { displayOrder: (position + 1) * 10 } }
+    }
+  })));
+  res.json({ message: direction === "earlier" ? "Gallery item moved earlier." : "Gallery item moved later." });
+});
 export const updateGalleryItem = asyncHandler(async (req, res) => {
   const query = scopedIdQuery(req, req.params.galleryItemId);
   const payload = galleryItemPayload(req.body, { partial: true });
@@ -492,22 +532,39 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
 
 export const removeGalleryItem = asyncHandler(async (req, res) => {
   const query = scopedIdQuery(req, req.params.galleryItemId);
-  const item = await GalleryItem.findOneAndUpdate(
-    query,
-    { $set: { isActive: false, isPublished: false } },
-    { new: true }
-  );
+  const item = await GalleryItem.findOneAndUpdate(query, { $set: { isActive: false, isPublished: false } }, { new: true });
+  if (!item) return res.status(404).json({ message: "Gallery item not found." });
+  await writeAuditLog(req, { action: "gallery_item.remove", entityType: "GalleryItem", entityId: item._id, changes: { movedToTrash: true } });
+  res.json({ message: "Gallery item moved to Trash." });
+});
 
-  if (!item) {
-    return res.status(404).json({ message: "Gallery item not found." });
-  }
+export const listRemovedResources = asyncHandler(async (req, res) => {
+  const restaurantId = req.managedRestaurantId;
+  const [categories, items, tables, gallery] = await Promise.all([
+    MenuCategory.find({ restaurantId, isActive: false }).sort({ updatedAt: -1 }).select("name slug updatedAt").lean(),
+    MenuItem.find({ restaurantId, isActive: false }).sort({ updatedAt: -1 }).select("name slug categoryId imageUrl updatedAt").populate("categoryId", "name isActive").lean(),
+    DiningTable.find({ restaurantId, isActive: false }).sort({ updatedAt: -1 }).select("tableNumber area capacity updatedAt").lean(),
+    GalleryItem.find({ restaurantId, isActive: false }).sort({ updatedAt: -1 }).select("title imageUrl updatedAt").lean()
+  ]);
+  res.json({ removed: { categories, items, tables, gallery } });
+});
 
-  await writeAuditLog(req, {
-    action: "gallery_item.remove",
-    entityType: "GalleryItem",
-    entityId: item._id,
-    changes: { isActive: false, isPublished: false }
-  });
-
-  res.json({ message: "Gallery item removed from active use.", item });
+export const restoreRemovedResource = asyncHandler(async (req, res) => {
+  const { resourceType, resourceId } = req.params;
+  const query = scopedIdQuery(req, resourceId);
+  let resource;
+  if (resourceType === "category") resource = await MenuCategory.findOneAndUpdate(query, { $set: { isActive: true } }, { new: true });
+  else if (resourceType === "dish") {
+    const item = await MenuItem.findOne(query).lean();
+    if (item) {
+      const category = await MenuCategory.findOne({ _id: item.categoryId, restaurantId: req.managedRestaurantId, isActive: true }).lean();
+      if (!category) return res.status(409).json({ message: "Restore this dish's category first." });
+      resource = await MenuItem.findOneAndUpdate(query, { $set: { isActive: true, isAvailable: true } }, { new: true });
+    }
+  } else if (resourceType === "table") resource = await DiningTable.findOneAndUpdate(query, { $set: { isActive: true, status: "available" } }, { new: true });
+  else if (resourceType === "gallery") resource = await GalleryItem.findOneAndUpdate(query, { $set: { isActive: true, isPublished: false } }, { new: true });
+  else return res.status(400).json({ message: "Unsupported Trash resource type." });
+  if (!resource) return res.status(404).json({ message: "Removed resource not found." });
+  await writeAuditLog(req, { action: `${resourceType}.restore`, entityType: resource.constructor.modelName, entityId: resource._id, changes: { restoredFromTrash: true } });
+  res.json({ message: "Item restored successfully.", resource });
 });

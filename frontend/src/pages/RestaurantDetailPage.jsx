@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageMessage from "../components/PageMessage";
+import LottieFlowIcon from "../components/LottieFlowIcon";
 import PublicMenuItem from "../components/public/PublicMenuItem";
 import { apiFetch } from "../lib/api";
 
@@ -128,7 +129,7 @@ export default function RestaurantDetailPage() {
               to={`/restaurant/${slug}/menu`}
               className="inline-flex border-b border-white/30 pb-1 text-xs uppercase tracking-[.2em] text-white/65 transition hover:text-white"
             >
-              View full menu →
+              View full menu <LottieFlowIcon name="arrow" />
             </Link>
           </div>
 

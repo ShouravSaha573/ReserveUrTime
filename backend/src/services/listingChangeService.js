@@ -2,6 +2,7 @@ import { publicMediaUrl } from "../utils/mediaUrl.js";
 import mongoose from "mongoose";
 import { ListingChangeRequest } from "../models/ListingChangeRequest.js";
 import { Restaurant } from "../models/Restaurant.js";
+import { createNotification, notifyPlatformAdmins } from "./notificationService.js";
 
 function cleanText(value, maxLength) {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -72,7 +73,7 @@ export async function createListingChangeRequest({
   }
 
   try {
-    return await ListingChangeRequest.create({
+    const request = await ListingChangeRequest.create({
       restaurantId,
       requestedBy,
       type,
@@ -80,6 +81,8 @@ export async function createListingChangeRequest({
       proposedValue,
       note
     });
+    await notifyPlatformAdmins({ restaurantId, type: "admin_request", title: "New restaurant request", message: restaurant.name + " submitted a listing change request.", href: "/platform-admin/change-requests" });
+    return request;
   } catch (error) {
     if (error?.code === 11000) {
       const conflict = new Error(
@@ -164,6 +167,7 @@ export async function reviewListingChangeRequest({
       reviewedRequest = request;
     });
 
+    await createNotification({ recipientUserId: reviewedRequest.requestedBy, restaurantId: reviewedRequest.restaurantId, type: "request_status", title: "Request " + reviewedRequest.status, message: "Platform Admin " + reviewedRequest.status + " your listing change request.", href: "/restaurant-admin/listing-requests" });
     return reviewedRequest;
   } finally {
     await session.endSession();

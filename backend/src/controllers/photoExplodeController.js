@@ -80,6 +80,10 @@ export const uploadRestaurantAdminDishImage = asyncHandler(async (req, res) => {
   });
 });
 
+export const uploadPlatformAdminRestaurantImage = asyncHandler(async (req, res) => {
+  const imageUrl = await storeListingRequestImage(req.file);
+  res.json({ message: "Restaurant image uploaded.", imageUrl });
+});
 export const uploadRestaurantAdminListingImage = asyncHandler(async (req, res) => {
   const imageUrl = await storeListingRequestImage(req.file);
   await writeAuditLog(req, {

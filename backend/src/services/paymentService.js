@@ -1,8 +1,10 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
 import { Order } from "../models/Order.js";
+import { Reservation } from "../models/Reservation.js";
 import { PaymentAttempt } from "../models/PaymentAttempt.js";
 import { User } from "../models/User.js";
+import { createNotification, notifyRestaurantAdmins } from "./notificationService.js";
 import {
   getPaymentCallbackBaseUrl,
   getPaymentClientReturnUrl,
@@ -27,6 +29,16 @@ function appError(message, status = 400) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+async function releaseReservationAfterGatewayInitFailure(orderId) {
+  await Reservation.updateOne(
+    { orderId, status: "pending", paymentStatus: mongoose.trusted({ $ne: "paid" }) },
+    {
+      $set: { status: "cancelled", paymentStatus: "failed" },
+      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
+    }
+  );
 }
 
 function money(value) {
@@ -162,7 +174,9 @@ async function gatewayFetch(url, options = {}) {
     response = await fetch(url, {
       ...options,
       redirect: "error",
-      signal: AbortSignal.timeout(12_000)
+      // SSLCOMMERZ's integration example allows 30 seconds for both connect
+      // and response. The sandbox route can be materially slower than live.
+      signal: AbortSignal.timeout(30_000)
     });
   } catch (error) {
     throw appError(
@@ -361,15 +375,20 @@ async function applyVerifiedGatewayRecord(attempt, record) {
 
   const session = await mongoose.startSession();
   let outcome = "verified_paid";
+  let newlyPaid = false;
   try {
     await session.withTransaction(async () => {
-      const [freshAttempt, order] = await Promise.all([
+      const [freshAttempt, order, reservation] = await Promise.all([
         PaymentAttempt.findById(attempt._id).session(session),
-        Order.findById(attempt.orderId).session(session)
+        Order.findById(attempt.orderId).session(session),
+        Reservation.findOne({ orderId: attempt.orderId }).session(session)
       ]);
 
-      if (!freshAttempt || !order) {
-        throw appError("Payment record could not be reconciled.", 404);
+      if (!freshAttempt || !order || !reservation) {
+        throw appError("Payment or reservation record could not be reconciled.", 404);
+      }
+      if (reservation.status === "cancelled") {
+        throw appError("The reservation hold expired before payment confirmation. Manual payment review is required.", 409);
       }
 
       if (order.paymentStatus === "paid") {
@@ -382,7 +401,12 @@ async function applyVerifiedGatewayRecord(attempt, record) {
           freshAttempt.riskTitle = riskTitle;
           freshAttempt.verifiedAt = freshAttempt.verifiedAt || new Date();
           freshAttempt.lastNotificationAt = new Date();
-          await freshAttempt.save({ session });
+          reservation.status = "confirmed";
+          reservation.paymentStatus = "paid";
+          reservation.paymentTransactionId = freshAttempt.transactionId;
+          reservation.paidAt = reservation.paidAt || new Date();
+          reservation.heldUntil = null;
+          await Promise.all([freshAttempt.save({ session }), reservation.save({ session })]);
           outcome = "verified_paid";
           return;
         }
@@ -411,17 +435,30 @@ async function applyVerifiedGatewayRecord(attempt, record) {
       await freshAttempt.save({ session });
 
       order.paymentStatus = "paid";
+      newlyPaid = true;
       order.paymentTransactionId = freshAttempt.transactionId;
       order.paidAt = order.paidAt || new Date();
       if (String(order.activePaymentAttemptId || "") === String(freshAttempt._id)) {
         order.activePaymentAttemptId = null;
       }
-      await order.save({ session });
+      reservation.status = "confirmed";
+      reservation.paymentStatus = "paid";
+      reservation.paymentTransactionId = freshAttempt.transactionId;
+      reservation.paidAt = reservation.paidAt || new Date();
+      reservation.heldUntil = null;
+      await Promise.all([order.save({ session }), reservation.save({ session })]);
     });
   } finally {
     await session.endSession();
   }
 
+  if (newlyPaid) {
+    const order = await Order.findById(attempt.orderId).select("userId restaurantId orderNumber").lean();
+    if (order) await Promise.all([
+      createNotification({ recipientUserId: order.userId, restaurantId: order.restaurantId, type: "payment_status", title: "Payment verified", message: "Payment for " + order.orderNumber + " was verified successfully.", href: "/dashboard/orders" }),
+      notifyRestaurantAdmins(order.restaurantId, { type: "payment_status", title: "Guest payment verified", message: "Payment for " + order.orderNumber + " is verified.", href: "/restaurant-admin/orders" })
+    ]);
+  }
   return { outcome, attempt: await PaymentAttempt.findById(attempt._id).lean() };
 }
 
@@ -539,6 +576,54 @@ async function reconcileAttempt(attempt) {
   return applyTrustedQueryRecord(attempt, record);
 }
 
+async function ensureRetryableReservationHold(order, userId) {
+  const reservation = await Reservation.findOne({ _id: order.reservationId, orderId: order._id });
+  if (!reservation) throw appError("The reservation attached to this Order was not found.", 409);
+  if (reservation.status === "confirmed" && reservation.paymentStatus === "paid") return reservation;
+  if (reservation.status === "pending" && reservation.heldUntil > new Date()) return reservation;
+  if (reservation.paymentStatus === "paid" || !["pending", "cancelled"].includes(reservation.status)) {
+    throw appError("This reservation cannot be reopened for payment.", 409);
+  }
+
+  const tableIds = [...new Set([
+    ...(reservation.tableIds || []).map(String),
+    ...(reservation.tableId ? [String(reservation.tableId)] : [])
+  ])];
+  if (!tableIds.length) throw appError("The reserved table is no longer available.", 409);
+  const reservationKeys = tableIds.map(
+    (tableId) => `${tableId}:${reservation.reservationDate}:${reservation.timeSlot}`
+  );
+
+  try {
+    const reopened = await Reservation.findOneAndUpdate(
+      {
+        _id: reservation._id,
+        orderId: order._id,
+        status: mongoose.trusted({ $in: ["pending", "cancelled"] }),
+        paymentStatus: mongoose.trusted({ $ne: "paid" })
+      },
+      {
+        $set: {
+          status: "pending",
+          paymentStatus: "pending",
+          heldUntil: new Date(Date.now() + 15 * 60 * 1000),
+          reservationKey: reservationKeys[0],
+          reservationKeys,
+          customerSlotKey: `${userId}:${reservation.restaurantId}:${reservation.reservationDate}:${reservation.timeSlot}`
+        }
+      },
+      { new: true, runValidators: true }
+    );
+    if (!reopened) throw appError("This reservation could not be reopened for payment.", 409);
+    return reopened;
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw appError("That table or reservation time was taken while payment was being retried. Choose another table.", 409);
+    }
+    throw error;
+  }
+}
+
 export async function initiateCustomerSslcommerzPayment(userId, orderId, paymentKey) {
   assertGatewayEnabled();
   const cleanPaymentKey = paymentKeyValue(paymentKey);
@@ -612,6 +697,8 @@ export async function initiateCustomerSslcommerzPayment(userId, orderId, payment
     }
   }
 
+  await ensureRetryableReservationHold(order, userId);
+
   const attempt = await PaymentAttempt.create({
     provider: "sslcommerz",
     environment: isSslcommerzLive() ? "live" : "sandbox",
@@ -653,6 +740,31 @@ export async function initiateCustomerSslcommerzPayment(userId, orderId, payment
     throw appError("Another payment attempt is already active for this Order.", 409);
   }
 
+  const claimedReservation = await Reservation.findOneAndUpdate(
+    {
+      _id: claimed.reservationId,
+      orderId: claimed._id,
+      status: "pending",
+      heldUntil: mongoose.trusted({ $gt: new Date() })
+    },
+    { $set: { paymentStatus: "pending" } },
+    { new: true }
+  ).lean();
+
+  if (!claimedReservation) {
+    await Promise.all([
+      PaymentAttempt.deleteOne({ _id: attempt._id, status: "creating" }),
+      Order.updateOne(
+        { _id: claimed._id, activePaymentAttemptId: attempt._id },
+        { $set: { activePaymentAttemptId: null, paymentStatus: "unpaid" } }
+      )
+    ]);
+    throw appError(
+      "The table hold expired. Check table availability and reserve again.",
+      409
+    );
+  }
+
   try {
     const response = await createGatewaySession({ order: claimed, user, attempt });
     const gatewayStatus = callbackValue(response?.status, 40).toUpperCase();
@@ -675,6 +787,8 @@ export async function initiateCustomerSslcommerzPayment(userId, orderId, payment
         { _id: order._id, activePaymentAttemptId: attempt._id, paymentStatus: mongoose.trusted({ $ne: "paid" }) },
         { $set: { activePaymentAttemptId: null, paymentStatus: "failed" } }
       );
+      await releaseReservationAfterGatewayInitFailure(order._id);
+
       throw appError(reason, 502);
     }
 
@@ -710,6 +824,8 @@ export async function initiateCustomerSslcommerzPayment(userId, orderId, payment
         { _id: order._id, activePaymentAttemptId: attempt._id, paymentStatus: mongoose.trusted({ $ne: "paid" }) },
         { $set: { activePaymentAttemptId: null, paymentStatus: "failed" } }
       );
+      await releaseReservationAfterGatewayInitFailure(order._id);
+
     }
     throw error;
   }

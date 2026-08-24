@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSiteContent } from "../context/SiteContentContext";
 import LottieFlowIcon from "./LottieFlowIcon";
+import NotificationBell from "./NotificationBell";
 
 function navClass({ isActive }) {
   return `cinematic-nav-link text-sm ${
@@ -67,6 +68,7 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <NotificationBell />
           <button
             type="button"
             className="mobile-menu-toggle md:hidden"
@@ -122,7 +124,7 @@ export default function Navbar() {
                     transition={{ delay: reduced ? 0 : index * 0.035, duration: 0.3 }}
                   >
                     <NavLink to={to} end={to === "/"} className={({ isActive }) => `mobile-nav-link ${isActive ? "is-active" : ""}`}>
-                      <span>{label}</span><LottieFlowIcon name="arrow" className="rotate-[135deg]" />
+                      <span>{label}</span><LottieFlowIcon name="arrow" className="rotate-[-45deg]" />
                     </NavLink>
                   </motion.div>
                 ))}

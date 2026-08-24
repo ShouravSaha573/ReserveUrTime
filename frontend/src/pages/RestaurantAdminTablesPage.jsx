@@ -59,7 +59,7 @@ export default function RestaurantAdminTablesPage() {
   }
 
   async function remove(table) {
-    if (!window.confirm(`Remove table ${table.tableNumber} from active service?`)) return;
+    if (!window.confirm(`Move table ${table.tableNumber} to Trash?`)) return;
     try {
       const data = await apiFetch(`/restaurant-admin/tables/${table._id}`, { method: "DELETE", retryGet: false });
       setState((current) => ({ ...current, success: data.message, error: "" }));
@@ -114,7 +114,7 @@ export default function RestaurantAdminTablesPage() {
             <article key={table._id} className={`surface rounded-3xl p-6 ${table.isActive ? "" : "opacity-55"}`}>
               <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[.2em] text-white/35">{table.area}</p><h2 className="mt-2 font-display text-4xl">{table.tableNumber}</h2></div><span className={`rounded-full px-3 py-1 text-xs ${table.status === "available" && table.isActive ? "bg-emerald-400/10 text-emerald-100" : "bg-amber-300/10 text-amber-100"}`}>{table.isActive ? table.status : "removed"}</span></div>
               <p className="mt-5 text-sm text-white/55">Capacity: <span className="text-white/85">{table.capacity} guests</span></p>
-              <div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { setEditingId(table._id); setForm({ tableNumber: table.tableNumber, capacity: table.capacity, area: table.area, status: table.status, isActive: table.isActive }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>{table.isActive ? <button type="button" className="btn-secondary" onClick={() => remove(table)}>Remove</button> : <button type="button" className="btn-primary" onClick={() => restore(table)}>Restore</button>}</div>
+              <div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { setEditingId(table._id); setForm({ tableNumber: table.tableNumber, capacity: table.capacity, area: table.area, status: table.status, isActive: table.isActive }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button><button type="button" className="btn-secondary" onClick={() => remove(table)}>Move to Trash</button></div>
             </article>
           ))}
         </div>

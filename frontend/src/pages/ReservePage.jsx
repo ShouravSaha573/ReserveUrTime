@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import PageMessage from "../components/PageMessage";
+import LottieFlowIcon from "../components/LottieFlowIcon";
 import { useAuth } from "../context/AuthContext";
 
 const TIME_SLOTS = [
@@ -173,7 +174,7 @@ export default function ReservePage() {
           paymentKey
         },
         retryGet: false,
-        timeoutMs: 12000
+        timeoutMs: 40_000
       });
 
       if (!data.gatewayUrl) throw new Error("SSLCOMMERZ did not provide a payment page.");
@@ -232,7 +233,7 @@ export default function ReservePage() {
             to={`/restaurant/${restaurant.slug}`}
             className="mt-8 inline-flex text-sm text-white/55 hover:text-white"
           >
-            ← Back to restaurant
+            <LottieFlowIcon name="arrow" className="rotate-180" /> Back to restaurant
           </Link>
         </div>
 

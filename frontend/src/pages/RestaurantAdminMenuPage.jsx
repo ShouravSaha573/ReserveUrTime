@@ -6,9 +6,7 @@ import { apiFetch, apiUpload } from "../lib/api";
 const blankCategory = {
   name: "",
   slug: "",
-  description: "",
-  displayOrder: 999,
-  isActive: true
+  description: ""
 };
 
 const blankDish = {
@@ -19,7 +17,6 @@ const blankDish = {
   ingredients: "",
   price: "",
   imageUrl: "",
-  displayOrder: 999,
   isAvailable: true,
   isActive: true
 };
@@ -181,9 +178,7 @@ export default function RestaurantAdminMenuPage() {
     setCategoryForm({
       name: category.name || "",
       slug: category.slug || "",
-      description: category.description || "",
-      displayOrder: category.displayOrder ?? 999,
-      isActive: Boolean(category.isActive)
+      description: category.description || ""
     });
     setState((current) => ({ ...current, error: "", success: "" }));
     requestAnimationFrame(() => {
@@ -292,8 +287,17 @@ export default function RestaurantAdminMenuPage() {
     }
   }
 
+  async function moveCategory(category, direction) {
+    try {
+      const data = await apiFetch(`/restaurant-admin/menu/categories/${category._id}/move`, { method: "PATCH", body: { direction }, retryGet: false });
+      setState((current) => ({ ...current, success: data.message, error: "" }));
+      await load();
+    } catch (error) {
+      setState((current) => ({ ...current, error: error.message, success: "" }));
+    }
+  }
   async function removeCategory(category) {
-    if (!window.confirm(`Remove ${category.name} from the active menu? Existing dish data will be preserved.`)) return;
+    if (!window.confirm(`Move ${category.name} and every dish in it to Trash?`)) return;
     try {
       const data = await apiFetch(`/restaurant-admin/menu/categories/${category._id}`, { method: "DELETE", retryGet: false });
       setState((current) => ({ ...current, success: data.message, error: "" }));
@@ -318,7 +322,7 @@ export default function RestaurantAdminMenuPage() {
   }
 
   async function removeDish(item) {
-    if (!window.confirm(`Remove ${item.name} from the active menu?`)) return;
+    if (!window.confirm(`Move ${item.name} to Trash?`)) return;
     try {
       const data = await apiFetch(`/restaurant-admin/menu/items/${item._id}`, { method: "DELETE", retryGet: false });
       setState((current) => ({ ...current, success: data.message, error: "" }));
@@ -361,19 +365,18 @@ export default function RestaurantAdminMenuPage() {
               <label className="block"><span className="mb-2 block text-sm text-white/60">Name</span><input className="input-field" name="name" value={categoryForm.name} onChange={updateCategory} required /></label>
               <label className="block"><span className="mb-2 block text-sm text-white/60">Slug (optional)</span><input className="input-field" name="slug" value={categoryForm.slug} onChange={updateCategory} placeholder="auto-from-name" /></label>
               <label className="block"><span className="mb-2 block text-sm text-white/60">Description</span><textarea className="input-field min-h-24 resize-y" name="description" value={categoryForm.description} onChange={updateCategory} /></label>
-              <label className="block"><span className="mb-2 block text-sm text-white/60">Display order</span><input className="input-field" type="number" min="0" max="9999" name="displayOrder" value={categoryForm.displayOrder} onChange={updateCategory} /></label>
-              <label className="flex items-center gap-3 text-sm text-white/60"><input type="checkbox" name="isActive" checked={categoryForm.isActive} onChange={updateCategory} /> Active</label>
+              {!editingCategory ? <p className="text-xs leading-5 text-white/40">New categories are added at the end of the public menu. Reorder them below at any time.</p> : null}
             </div>
             <div className="mt-5 flex gap-3"><button className="btn-primary" disabled={state.saving}>{state.saving ? "Saving…" : editingCategory ? "Save category" : "Add category"}</button>{editingCategory && <button type="button" className="btn-secondary" onClick={resetCategory}>Cancel</button>}</div>
           </form>
 
           <div className="mt-6 space-y-3">
             {state.loading && <p className="text-white/40">Loading categories…</p>}
-            {categories.map((category) => (
+            {categories.map((category, index) => (
               <article key={category._id} className={`surface rounded-2xl p-5 ${category.isActive ? "" : "opacity-55"}`}>
-                <div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-2xl">{category.name}</h3><p className="mt-1 text-xs text-white/35">{category.slug} · order {category.displayOrder}</p></div><span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/55">{category.isActive ? "Active" : "Removed"}</span></div>
+                <div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-2xl">{category.name}</h3><p className="mt-1 text-xs text-white/35">Public menu position {index + 1}</p></div></div>
                 {category.description && <p className="mt-3 text-sm text-white/50">{category.description}</p>}
-                <div className="mt-4 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => editCategory(category)}>Edit</button>{category.isActive ? <button type="button" className="btn-secondary" onClick={() => removeCategory(category)}>Remove</button> : <button type="button" className="btn-primary" onClick={() => restoreCategory(category)}>Restore</button>}</div>
+                <div className="mt-4 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => editCategory(category)}>Edit</button><button type="button" className="btn-secondary" disabled={index === 0} onClick={() => moveCategory(category, "earlier")}>Move earlier</button><button type="button" className="btn-secondary" disabled={index === categories.length - 1} onClick={() => moveCategory(category, "later")}>Move later</button><button type="button" className="btn-secondary" onClick={() => removeCategory(category)}>Move to Trash</button></div>
               </article>
             ))}
           </div>
@@ -391,7 +394,6 @@ export default function RestaurantAdminMenuPage() {
               <label className="block md:col-span-2"><span className="mb-2 block text-sm text-white/60">Ingredients (comma separated)</span><input className="input-field" name="ingredients" value={dishForm.ingredients} onChange={updateDish} placeholder="Mushroom, parmesan, truffle" /></label>
               <label className="block md:col-span-2"><span className="mb-2 block text-sm text-white/60">Dish image URL (optional)</span><input className="input-field" name="imageUrl" value={dishForm.imageUrl} onChange={updateDish} placeholder="https://... or /images/..." /></label>
               <div className="block md:col-span-2"><span className="mb-2 block text-sm text-white/70">Or upload a dish image</span><ImageDropzone file={pendingImageFile} onFile={chooseDishImage} /></div>
-              <label className="block"><span className="mb-2 block text-sm text-white/60">Display order</span><input className="input-field" type="number" min="0" max="9999" name="displayOrder" value={dishForm.displayOrder} onChange={updateDish} /></label>
               <div className="flex flex-col justify-end gap-3 pb-2"><label className="flex items-center gap-3 text-sm text-white/60"><input type="checkbox" name="isAvailable" checked={dishForm.isAvailable} onChange={updateDish} /> Available</label><label className="flex items-center gap-3 text-sm text-white/60"><input type="checkbox" name="isActive" checked={dishForm.isActive} onChange={updateDish} /> Active</label></div>
             </div>
             {(localImagePreview || dishForm.imageUrl) && <div className="mt-5 grid min-h-52 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle,rgba(255,255,255,.06),transparent_65%)] p-4"><img src={localImagePreview || dishForm.imageUrl} alt="Dish preview" className="h-52 w-full object-contain" /></div>}
@@ -403,7 +405,7 @@ export default function RestaurantAdminMenuPage() {
             {items.map((item) => (
               <article key={item._id} className={`surface overflow-hidden rounded-3xl ${item.isActive ? "" : "opacity-55"}`}>
                 {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="h-40 w-full object-cover" /> : <div className="flex h-40 items-center justify-center bg-white/[.02] text-sm text-white/25">No image</div>}
-                <div className="p-5"><p className="text-xs uppercase tracking-[.18em] text-white/35">{item.categoryId?.name || "Category unavailable"}</p><h3 className="mt-2 font-display text-3xl">{item.name}</h3><p className="mt-2 text-sm text-white/45">৳{Number(item.price || 0).toFixed(2)} · {item.isAvailable ? "Available" : "Unavailable"}</p>{item.ingredients?.length > 0 && <p className="mt-3 text-xs leading-5 text-white/40">{item.ingredients.join(" · ")}</p>}<div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { setEditingDish(item._id); setPendingImageFile(null); setDishForm({ categoryId: item.categoryId?._id || "", name: item.name, slug: item.slug, description: item.description || "", ingredients: (item.ingredients || []).join(", "), price: item.price, imageUrl: item.imageUrl || "", displayOrder: item.displayOrder, isAvailable: item.isAvailable, isActive: item.isActive }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>{item.isActive ? <button type="button" className="btn-secondary" onClick={() => removeDish(item)}>Remove</button> : <button type="button" className="btn-primary" onClick={() => restoreDish(item)}>Restore</button>}</div></div>
+                <div className="p-5"><p className="text-xs uppercase tracking-[.18em] text-white/35">{item.categoryId?.name || "Category unavailable"}</p><h3 className="mt-2 font-display text-3xl">{item.name}</h3><p className="mt-2 text-sm text-white/45">৳{Number(item.price || 0).toFixed(2)} · {item.isAvailable ? "Available" : "Unavailable"}</p>{item.ingredients?.length > 0 && <p className="mt-3 text-xs leading-5 text-white/40">{item.ingredients.join(" · ")}</p>}<div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { setEditingDish(item._id); setPendingImageFile(null); setDishForm({ categoryId: item.categoryId?._id || "", name: item.name, slug: item.slug, description: item.description || "", ingredients: (item.ingredients || []).join(", "), price: item.price, imageUrl: item.imageUrl || "", isAvailable: item.isAvailable, isActive: item.isActive }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button><button type="button" className="btn-secondary" onClick={() => removeDish(item)}>Move to Trash</button></div></div>
               </article>
             ))}
           </div>

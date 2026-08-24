@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import ExplodedDishCanvas, { useGLTF } from "../components/three/ExplodedDishCanvas";
 import PageMessage from "../components/PageMessage";
 import AddToCartButton from "../components/AddToCartButton";
+import LottieFlowIcon from "../components/LottieFlowIcon";
 import { apiFetch } from "../lib/api";
 
 function hasWebGLSupport() {
@@ -134,7 +135,7 @@ export default function Restaurant3DMenuPage() {
       <main className="mx-auto max-w-6xl px-6 py-24 md:px-8">
         <PageMessage title="3D menu unavailable" message={state.error || "The 3D menu could not be loaded."} />
         <Link to={`/restaurant/${slug}/menu`} className="mt-8 inline-flex text-sm text-white/70 hover:text-white">
-          ← Return to the normal menu
+          <LottieFlowIcon name="arrow" className="rotate-180" /> Return to the normal menu
         </Link>
       </main>
     );
@@ -145,7 +146,7 @@ export default function Restaurant3DMenuPage() {
       <main className="mx-auto max-w-6xl px-6 py-24 md:px-8">
         <PageMessage title="No 3D dishes yet" message="This Restaurant currently has no enabled 3D dishes. The normal menu is still available." />
         <Link to={`/restaurant/${slug}/menu`} className="mt-8 inline-flex text-sm text-white/70 hover:text-white">
-          ← Open normal menu
+          <LottieFlowIcon name="arrow" className="rotate-180" /> Open normal menu
         </Link>
       </main>
     );
@@ -171,7 +172,7 @@ export default function Restaurant3DMenuPage() {
       <section className="mx-auto max-w-[1500px] px-5 pb-20 pt-8 md:px-8 md:pb-28 md:pt-12">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
           <Link to={`/restaurant/${slug}/menu`} className="text-xs uppercase tracking-[.2em] text-white/45 transition hover:text-white">
-            ← Normal menu
+            <LottieFlowIcon name="arrow" className="rotate-180" /> Normal menu
           </Link>
           <p className="text-xs uppercase tracking-[.24em] text-white/32">
             Phase 7 · Full 3D menu · {currentIndex + 1}/{items.length}
@@ -235,7 +236,7 @@ export default function Restaurant3DMenuPage() {
 
             <div className="dish3d-menu-navigation" aria-label="3D dish navigation">
               <button type="button" onClick={() => goTo(previous)} disabled={!previous || state.transitioning}>
-                <span>← Previous</span>
+                <span><LottieFlowIcon name="arrow" className="rotate-180" /> Previous</span>
                 <strong>{previous?.name || item.name}</strong>
               </button>
               <div className="dish3d-menu-dots" aria-label="3D menu position">
@@ -252,7 +253,7 @@ export default function Restaurant3DMenuPage() {
                 ))}
               </div>
               <button type="button" onClick={() => goTo(next)} disabled={!next || state.transitioning}>
-                <span>Next →</span>
+                <span>Next <LottieFlowIcon name="arrow" /></span>
                 <strong>{next?.name || item.name}</strong>
               </button>
             </div>

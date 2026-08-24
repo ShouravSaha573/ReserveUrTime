@@ -8,7 +8,6 @@ const blank = {
   imageUrl: "",
   altText: "",
   caption: "",
-  displayOrder: 999,
   isPublished: true,
   isActive: true
 };
@@ -92,7 +91,7 @@ export default function RestaurantAdminGalleryPage() {
   }
 
   async function remove(item) {
-    if (!window.confirm(`Remove ${item.title || "this gallery item"}?`)) return;
+    if (!window.confirm(`Move ${item.title || "this gallery item"} to Trash?`)) return;
     try {
       const data = await apiFetch(`/restaurant-admin/gallery/${item._id}`, { method: "DELETE", retryGet: false });
       setState((current) => ({ ...current, success: data.message, error: "" }));
@@ -116,6 +115,22 @@ export default function RestaurantAdminGalleryPage() {
     }
   }
 
+  async function move(item, direction) {
+    try {
+      const data = await apiFetch("/restaurant-admin/gallery/" + item._id + "/move", {
+        method: "PATCH",
+        body: { direction },
+        retryGet: false
+      });
+      setState((current) => ({ ...current, success: data.message, error: "" }));
+      await load();
+    } catch (error) {
+      setState((current) => ({ ...current, error: error.message, success: "" }));
+    }
+  }
+
+  const activeCount = items.filter((item) => item.isActive).length;
+
   return (
     <main className="admin-workspace mx-auto max-w-7xl px-6 py-12 md:px-8 md:py-16">
       <p className="text-xs uppercase tracking-[.3em] text-white/35">Restaurant Admin · Internal operations</p>
@@ -134,7 +149,6 @@ export default function RestaurantAdminGalleryPage() {
             <div className="block"><span className="mb-2 block text-sm text-white/60">Gallery image</span><ImageDropzone file={pendingImageFile} onFile={chooseImage} /><input className="input-field mt-3" name="imageUrl" value={form.imageUrl} onChange={(event) => { update(event); setPendingImageFile(null); }} placeholder="Or paste an image URL" /></div>
             <label className="block"><span className="mb-2 block text-sm text-white/60">Alt text</span><input className="input-field" name="altText" value={form.altText} onChange={update} /></label>
             <label className="block"><span className="mb-2 block text-sm text-white/60">Caption</span><textarea className="input-field min-h-24 resize-y" name="caption" value={form.caption} onChange={update} /></label>
-            <label className="block"><span className="mb-2 block text-sm text-white/60">Display order</span><input className="input-field" type="number" min="0" max="9999" name="displayOrder" value={form.displayOrder} onChange={update} /></label>
             <label className="flex items-center gap-3 text-sm text-white/60"><input type="checkbox" name="isPublished" checked={form.isPublished} onChange={update} /> Published</label>
             <label className="flex items-center gap-3 text-sm text-white/60"><input type="checkbox" name="isActive" checked={form.isActive} onChange={update} /> Active</label>
           </div>
@@ -144,10 +158,10 @@ export default function RestaurantAdminGalleryPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           {state.loading && <p className="text-white/40">Loading gallery…</p>}
-          {items.map((item) => (
+          {items.map((item, index) => (
             <article key={item._id} className={`surface overflow-hidden rounded-3xl ${item.isActive ? "" : "opacity-55"}`}>
               <div className="h-52 bg-white/[.02]">{item.imageUrl ? <img src={item.imageUrl} alt={item.altText || item.title || "Restaurant gallery"} className="h-full w-full object-cover" /> : null}</div>
-              <div className="p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="font-display text-3xl">{item.title || "Untitled"}</h2><p className="mt-2 text-xs text-white/35">Order {item.displayOrder}</p></div><span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/55">{item.isActive ? item.isPublished ? "Published" : "Draft" : "Removed"}</span></div>{item.caption && <p className="mt-3 text-sm text-white/50">{item.caption}</p>}<div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { setEditingId(item._id); setForm({ title: item.title || "", imageUrl: item.imageUrl || "", altText: item.altText || "", caption: item.caption || "", displayOrder: item.displayOrder, isPublished: item.isPublished, isActive: item.isActive }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>{item.isActive ? <button type="button" className="btn-secondary" onClick={() => remove(item)}>Remove</button> : <button type="button" className="btn-primary" onClick={() => restore(item)}>Restore</button>}</div></div>
+              <div className="p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="font-display text-3xl">{item.title || "Untitled"}</h2>{item.isActive ? <p className="mt-2 text-xs text-white/35">Position {index + 1} of {activeCount}</p> : null}</div><span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/55">{item.isActive ? item.isPublished ? "Published" : "Draft" : "Removed"}</span></div>{item.caption && <p className="mt-3 text-sm text-white/50">{item.caption}</p>}<div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { setEditingId(item._id); setForm({ title: item.title || "", imageUrl: item.imageUrl || "", altText: item.altText || "", caption: item.caption || "", isPublished: item.isPublished, isActive: item.isActive }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button><><button type="button" className="btn-secondary" disabled={index === 0} onClick={() => move(item, "earlier")}>Move earlier</button><button type="button" className="btn-secondary" disabled={index === activeCount - 1} onClick={() => move(item, "later")}>Move later</button><button type="button" className="btn-secondary" onClick={() => remove(item)}>Move to Trash</button></></div></div>
             </article>
           ))}
         </div>

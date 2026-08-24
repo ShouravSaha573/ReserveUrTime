@@ -7,7 +7,8 @@ import { Order } from "../models/Order.js";
 import { Reservation } from "../models/Reservation.js";
 import { Restaurant } from "../models/Restaurant.js";
 import { User } from "../models/User.js";
-import { createNotification } from "./notificationService.js";
+import { createNotification, notifyRestaurantAdmins } from "./notificationService.js";
+import { availabilityForDate, validateSelectedTables } from "./tableAvailabilityService.js";
 
 const ORDER_STATUSES = ["placed", "confirmed", "preparing", "ready", "completed", "cancelled"];
 const RESERVATION_TIME_SLOTS = ["18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30"];
@@ -66,6 +67,9 @@ function reservationValue(value) {
   const reservationDate = String(value?.reservationDate || "");
   const timeSlot = String(value?.timeSlot || "");
   const guestCount = Number(value?.guestCount);
+  const selectedTableIds = Array.isArray(value?.selectedTableIds)
+    ? [...new Set(value.selectedTableIds.map(String))].slice(0, 3)
+    : [];
   const dhakaToday = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
     year: "numeric",
@@ -90,7 +94,7 @@ function reservationValue(value) {
     error.status = 400;
     throw error;
   }
-  return { reservationDate, timeSlot, guestCount };
+  return { reservationDate, timeSlot, guestCount, selectedTableIds };
 }
 
 function bookingReference() {
@@ -443,30 +447,20 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
 
       const subtotal = money(orderItems.reduce((sum, item) => sum + item.lineTotal, 0));
       const orderId = new mongoose.Types.ObjectId();
-      const suitableTables = await DiningTable.find({
+      const availability = await availabilityForDate({
         restaurantId: restaurant._id,
-        isActive: true,
-        status: "available",
-        capacity: mongoose.trusted({ $gte: dining.guestCount })
-      }).session(session).sort({ capacity: 1, tableNumber: 1 }).lean();
-      if (!suitableTables.length) {
-        const error = new Error("No table can support this guest count.");
+        date: dining.reservationDate,
+        guestCount: dining.guestCount,
+        session
+      });
+      const slot = availability.slots.find((entry) => entry.timeSlot === dining.timeSlot);
+      const selection = validateSelectedTables(slot, dining.selectedTableIds, dining.guestCount);
+      if (selection.error) {
+        const error = new Error(selection.error);
         error.status = 409;
         throw error;
       }
-      const occupied = await Reservation.find({
-        tableId: mongoose.trusted({ $in: suitableTables.map((table) => table._id) }),
-        reservationDate: dining.reservationDate,
-        timeSlot: dining.timeSlot,
-        status: mongoose.trusted({ $in: ["pending", "confirmed"] })
-      }).session(session).select("tableId").lean();
-      const occupiedIds = new Set(occupied.map((entry) => String(entry.tableId)));
-      const table = suitableTables.find((entry) => !occupiedIds.has(String(entry._id)));
-      if (!table) {
-        const error = new Error("That reservation time is no longer available. Choose another time.");
-        error.status = 409;
-        throw error;
-      }
+      const tables = selection.selectedTables;
       const reservationId = new mongoose.Types.ObjectId();
       const reference = bookingReference();
       const order = new Order({
@@ -481,8 +475,11 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
           reservationDate: dining.reservationDate,
           timeSlot: dining.timeSlot,
           guestCount: dining.guestCount,
-          tableNumber: table.tableNumber,
-          tableArea: table.area || "Main Dining"
+          tableNumber: tables.map((table) => table.tableNumber).join(", "),
+          tableArea: [...new Set(tables.map((table) => table.area || "Main Dining"))].join(", "),
+          tableNumbers: tables.map((table) => table.tableNumber),
+          tableAreas: tables.map((table) => table.area || "Main Dining"),
+          requiredTableCount: availability.requiredTableCount
         },
         items: orderItems,
         subtotal,
@@ -516,13 +513,17 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
         bookingReference: reference,
         userId,
         restaurantId: restaurant._id,
-        tableId: table._id,
+        tableId: tables[0]._id,
+        tableIds: tables.map((table) => table._id),
         orderId,
         reservationDate: dining.reservationDate,
         timeSlot: dining.timeSlot,
         guestCount: dining.guestCount,
-        status: "confirmed",
-        reservationKey: `${table._id}:${dining.reservationDate}:${dining.timeSlot}`,
+        status: "pending",
+        heldUntil: new Date(Date.now() + 15 * 60 * 1000),
+        paymentStatus: "unpaid",
+        reservationKey: `${tables[0]._id}:${dining.reservationDate}:${dining.timeSlot}`,
+        reservationKeys: tables.map((table) => `${table._id}:${dining.reservationDate}:${dining.timeSlot}`),
         customerSlotKey: `${userId}:${restaurant._id}:${dining.reservationDate}:${dining.timeSlot}`
       });
 
@@ -534,7 +535,7 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
       createdOrderId = order._id;
     });
   } catch (error) {
-    if (error?.code === 11000 && (error?.keyPattern?.reservationKey || error?.keyPattern?.customerSlotKey)) {
+    if (error?.code === 11000 && (error?.keyPattern?.reservationKey || error?.keyPattern?.reservationKeys || error?.keyPattern?.customerSlotKey)) {
       const conflict = new Error("That table or reservation time was just taken. Please choose another time.");
       conflict.status = 409;
       throw conflict;
@@ -544,7 +545,12 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
     await session.endSession();
   }
 
-  return getCustomerOrderById(userId, createdOrderId);
+  const created = await getCustomerOrderById(userId, createdOrderId);
+  await Promise.all([
+    createNotification({ recipientUserId: userId, restaurantId: created.restaurantId?._id || created.restaurantId, type: "order_status", title: "Reservation payment required", message: "Your order " + created.orderNumber + " and table are held temporarily. Complete payment to confirm.", href: "/dashboard/orders" }),
+    notifyRestaurantAdmins(created.restaurantId?._id || created.restaurantId, { type: "order_status", title: "Reservation awaiting payment", message: "A guest started " + created.orderNumber + ". Fulfilment remains locked until payment is verified.", href: "/restaurant-admin/orders" })
+  ]);
+  return created;
 }
 
 export async function listCustomerOrders(userId) {
@@ -596,7 +602,7 @@ export async function cancelCustomerOrder(userId, orderId) {
     { orderId: updated._id, userId, status: mongoose.trusted({ $in: ["pending", "confirmed"] }) },
     {
       $set: { status: "cancelled" },
-      $unset: { reservationKey: 1, customerSlotKey: 1 }
+      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
     }
   );
 

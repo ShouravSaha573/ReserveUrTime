@@ -14,7 +14,7 @@ export default function GalaxyRestaurantSearch({
   initialValue = "",
   suggestions = true,
   onSearch,
-  placeholder = "Search a restaurant or cuisine..."
+  placeholder = "Search restaurants, food, categories or locations..."
 }) {
   const navigate = useNavigate();
   const shellRef = useRef(null);
@@ -167,7 +167,7 @@ export default function GalaxyRestaurantSearch({
         onPointerMove={handlePointerMove}
         onPointerLeave={resetTilt}
         role="search"
-        aria-label="Search restaurants by name or cuisine"
+        aria-label="Search by restaurant, food, category, cuisine or location"
       >
         <span className="galaxy-search-orbit galaxy-search-orbit-a" aria-hidden="true" />
         <span className="galaxy-search-orbit galaxy-search-orbit-b" aria-hidden="true" />
@@ -180,7 +180,7 @@ export default function GalaxyRestaurantSearch({
           </span>
 
           <label className="sr-only" htmlFor="restaurant-galaxy-search">
-            Search restaurants by restaurant name or cuisine
+            Search by restaurant name, food, category, cuisine or location
           </label>
           <input
             ref={inputRef}
@@ -208,7 +208,7 @@ export default function GalaxyRestaurantSearch({
             disabled={!query.trim() || launching}
           >
             <span>Explore</span>
-            <LottieFlowIcon name="arrow" className="rotate-180" />
+            <LottieFlowIcon name="arrow" />
           </button>
         </div>
       </form>
@@ -225,7 +225,7 @@ export default function GalaxyRestaurantSearch({
 
           {!loading && !error && results.length === 0 && (
             <div className="galaxy-search-status">
-              No restaurant or cuisine matched “{query.trim()}”.
+              No restaurant, food, category or location matched “{query.trim()}”.
             </div>
           )}
 
@@ -252,7 +252,7 @@ export default function GalaxyRestaurantSearch({
                     {restaurant.cuisine} · {restaurant.location}
                   </span>
                 </span>
-                <LottieFlowIcon name="arrow" className="rotate-[135deg] opacity-60" />
+                <LottieFlowIcon name="arrow" className="rotate-[-45deg] opacity-60" />
               </button>
             ))}
         </div>

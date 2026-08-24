@@ -1,21 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, apiUpload } from "../../lib/api";
+import ImageDropzone from "../ImageDropzone";
 
 const emptyForm = {
   name: "",
   slug: "",
   description: "",
   coverImageUrl: "",
-  logoUrl: "",
   cuisine: "",
   location: "",
   phone: "",
   email: "",
   openingHours: "Daily · 6:00 PM – 11:30 PM",
-  theme: "charcoal",
-  isFeatured: false,
-  featuredOrder: 999,
-  listingOrder: 999,
   isActive: true
 };
 
@@ -25,16 +21,11 @@ function restaurantToForm(restaurant) {
     slug: restaurant.slug || "",
     description: restaurant.description || "",
     coverImageUrl: restaurant.coverImageUrl || "",
-    logoUrl: restaurant.logoUrl || "",
     cuisine: restaurant.cuisine || "",
     location: restaurant.location || "",
     phone: restaurant.phone || "",
     email: restaurant.email || "",
     openingHours: restaurant.openingHours || "",
-    theme: restaurant.theme || "charcoal",
-    isFeatured: Boolean(restaurant.isFeatured),
-    featuredOrder: restaurant.featuredOrder ?? 999,
-    listingOrder: restaurant.listingOrder ?? 999,
     isActive: Boolean(restaurant.isActive)
   };
 }
@@ -43,7 +34,14 @@ export default function RestaurantManagement({ restaurants, onChanged }) {
   const editorRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [coverFile, setCoverFile] = useState(null);
   const [state, setState] = useState({ loading: false, error: "", success: "" });
+
+  const coverPreview = useMemo(() => coverFile ? URL.createObjectURL(coverFile) : form.coverImageUrl, [coverFile, form.coverImageUrl]);
+
+  useEffect(() => () => {
+    if (coverFile && coverPreview) URL.revokeObjectURL(coverPreview);
+  }, [coverFile, coverPreview]);
 
   const activeCount = useMemo(
     () => restaurants.filter((restaurant) => restaurant.isActive).length,
@@ -70,6 +68,7 @@ export default function RestaurantManagement({ restaurants, onChanged }) {
   function startAdd() {
     setEditingId(null);
     setForm(emptyForm);
+    setCoverFile(null);
     setState({ loading: false, error: "", success: "" });
   }
 
@@ -91,6 +90,7 @@ export default function RestaurantManagement({ restaurants, onChanged }) {
     }
     setEditingId(restaurantId);
     setForm(restaurantToForm(restaurant));
+    setCoverFile(null);
     setState({ loading: false, error: "", success: "" });
   }
 
@@ -99,19 +99,28 @@ export default function RestaurantManagement({ restaurants, onChanged }) {
     setState({ loading: true, error: "", success: "" });
 
     try {
+      const coverUpload = coverFile
+        ? await apiUpload("/platform-admin/restaurant-images", coverFile)
+        : null;
+      const payload = {
+        ...form,
+        coverImageUrl: coverUpload?.imageUrl || form.coverImageUrl
+      };
       const path = editingId
         ? `/platform-admin/restaurants/${editingId}`
         : "/platform-admin/restaurants";
       const method = editingId ? "PATCH" : "POST";
       const data = await apiFetch(path, {
         method,
-        body: form,
+        body: payload,
         retryGet: false
       });
 
       setState({ loading: false, error: "", success: data.message });
       await onChanged();
-      if (!editingId) setForm(emptyForm);
+      setCoverFile(null);
+      if (editingId) setForm(payload);
+      else setForm(emptyForm);
     } catch (error) {
       setState({ loading: false, error: error.message, success: "" });
     }
@@ -165,7 +174,7 @@ export default function RestaurantManagement({ restaurants, onChanged }) {
       <div className="mt-7 grid gap-4 lg:grid-cols-2">
         {restaurants.map((restaurant) => (
           <article key={restaurant._id} className="surface overflow-hidden rounded-3xl">
-            <div className="aspect-video overflow-hidden bg-white/[.03]">
+            <div className="relative aspect-video overflow-hidden bg-white/[.03]">
               {restaurant.coverImageUrl ? (
                 <img
                   src={restaurant.coverImageUrl}
@@ -213,33 +222,26 @@ export default function RestaurantManagement({ restaurants, onChanged }) {
           <label className="block"><span className="mb-2 block text-sm text-white/60">Restaurant name *</span><input className="input-field" name="name" value={form.name} onChange={update} required /></label>
           <label className="block"><span className="mb-2 block text-sm text-white/60">Slug *</span><input className="input-field" name="slug" value={form.slug} onChange={update} placeholder="ember-house" /></label>
           <label className="block md:col-span-2"><span className="mb-2 block text-sm text-white/60">Description *</span><textarea className="input-field min-h-28 resize-y" name="description" value={form.description} onChange={update} required /></label>
-          <label className="block"><span className="mb-2 block text-sm text-white/60">Homepage / listing image URL</span><input className="input-field" name="coverImageUrl" value={form.coverImageUrl} onChange={update} placeholder="/images/example.svg or https://..." /></label>
-          <label className="block"><span className="mb-2 block text-sm text-white/60">Logo URL</span><input className="input-field" name="logoUrl" value={form.logoUrl} onChange={update} /></label>
+          <div className="block">
+            <span className="mb-2 block text-sm text-white/60">Homepage / listing image</span>
+            <ImageDropzone file={coverFile} onFile={setCoverFile} label="Drag a restaurant image from your PC" />
+          </div>
           <label className="block"><span className="mb-2 block text-sm text-white/60">Cuisine *</span><input className="input-field" name="cuisine" value={form.cuisine} onChange={update} required /></label>
           <label className="block"><span className="mb-2 block text-sm text-white/60">Location *</span><input className="input-field" name="location" value={form.location} onChange={update} required /></label>
           <label className="block"><span className="mb-2 block text-sm text-white/60">Phone</span><input className="input-field" name="phone" value={form.phone} onChange={update} /></label>
           <label className="block"><span className="mb-2 block text-sm text-white/60">Public email</span><input className="input-field" name="email" type="email" value={form.email} onChange={update} /></label>
           <label className="block"><span className="mb-2 block text-sm text-white/60">Opening hours</span><input className="input-field" name="openingHours" value={form.openingHours} onChange={update} /></label>
-          <label className="block"><span className="mb-2 block text-sm text-white/60">Theme key</span><input className="input-field" name="theme" value={form.theme} onChange={update} /></label>
-          <label className="block"><span className="mb-2 block text-sm text-white/60">Public listing order</span><input className="input-field" name="listingOrder" type="number" min="0" max="9999" value={form.listingOrder} onChange={update} /></label>
-          <label className="block"><span className="mb-2 block text-sm text-white/60">Homepage featured order</span><input className="input-field" name="featuredOrder" type="number" min="0" max="9999" value={form.featuredOrder} onChange={update} /></label>
         </div>
 
-        <label className="mt-5 flex items-center gap-3 text-sm text-white/60">
-          <input type="checkbox" name="isFeatured" checked={form.isFeatured} onChange={update} />
-          Feature this Restaurant on the public homepage
-        </label>
 
         {editingId && (
           <label className="mt-5 flex items-center gap-3 text-sm text-white/60">
             <input type="checkbox" name="isActive" checked={form.isActive} onChange={update} />
             Show this restaurant on the public platform
           </label>
-        )}
-
-        {form.coverImageUrl && (
+        )}        {coverPreview && (
           <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-            <img src={form.coverImageUrl} alt="Listing preview" className="h-52 w-full object-cover" />
+            <img src={coverPreview} alt="Restaurant listing preview" className="h-52 w-full object-cover" />
           </div>
         )}
 

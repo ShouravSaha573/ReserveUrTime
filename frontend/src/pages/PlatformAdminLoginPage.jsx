@@ -55,11 +55,6 @@ export default function PlatformAdminLoginPage() {
           Platform control
         </p>
         <h1 className="mt-5 font-display text-5xl">Platform Admin access</h1>
-        <p className="mt-4 text-sm leading-6 text-white/45">
-          There is no public Platform Admin registration. This role controls the
-          ReserveUrTime platform shell only; restaurant-internal operations stay
-          outside this account.
-        </p>
 
         <div className="mt-8 space-y-5">
           <label className="block">

@@ -34,7 +34,6 @@ function Field({ label, children, span = "" }) {
 export default function HomepageCmsManagement() {
   const { setContent } = useSiteContent();
   const [form, setForm] = useState(DEFAULT_SITE_CONTENT);
-  const [auditLogs, setAuditLogs] = useState([]);
   const [state, setState] = useState({
     loading: true,
     saving: false,
@@ -45,12 +44,8 @@ export default function HomepageCmsManagement() {
   async function load() {
     setState((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const [contentData, auditData] = await Promise.all([
-        apiFetch("/platform-admin/homepage"),
-        apiFetch("/platform-admin/audit-logs?limit=12")
-      ]);
+      const contentData = await apiFetch("/platform-admin/homepage");
       setForm(merge(contentData.content));
-      setAuditLogs(auditData.auditLogs || []);
     } catch (error) {
       setState((current) => ({ ...current, error: error.message }));
     } finally {
@@ -92,7 +87,7 @@ export default function HomepageCmsManagement() {
     try {
       const data = await apiFetch("/platform-admin/homepage", {
         method: "PATCH",
-        body: { ...form, hero: { ...form.hero, enabled: true }, sectionOrder: [...DEFAULT_SITE_CONTENT.sectionOrder] },
+        body: { ...form, hero: { ...form.hero, enabled: true, browseCtaPath: "/restaurants", registerCtaPath: "/customer/register" }, restaurantsSection: { ...form.restaurantsSection, viewAllPath: "/restaurants" }, sectionOrder: [...DEFAULT_SITE_CONTENT.sectionOrder] },
         retryGet: false
       });
       const next = merge(data.content);
@@ -103,8 +98,6 @@ export default function HomepageCmsManagement() {
         saving: false,
         success: data.message
       }));
-      const auditData = await apiFetch("/platform-admin/audit-logs?limit=12");
-      setAuditLogs(auditData.auditLogs || []);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -149,11 +142,9 @@ export default function HomepageCmsManagement() {
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <p className="text-xs uppercase tracking-[.28em] text-white/35">Homepage</p>
-            <h2 className="mt-3 font-display text-4xl">Homepage Intro & Permanent Hero Stack</h2>
+            <h2 className="mt-3 font-display text-4xl">Homepage introduction</h2>
           </div>
-          <div className="rounded-full border border-emerald-200/15 bg-emerald-200/[.05] px-4 py-2 text-xs uppercase tracking-[.16em] text-emerald-100/65">
-            Permanent heroes · always visible
-          </div>
+
         </div>
 
         <div className="mt-6 grid gap-5 md:grid-cols-2">
@@ -172,22 +163,14 @@ export default function HomepageCmsManagement() {
           <Field label="Browse CTA label">
             <input className="input-field" value={form.hero.browseCtaLabel} onChange={updateText("hero", "browseCtaLabel")} />
           </Field>
-          <Field label="Browse CTA internal path">
-            <input className="input-field" value={form.hero.browseCtaPath} onChange={updateText("hero", "browseCtaPath")} />
-          </Field>
+
           <Field label="Register CTA label">
             <input className="input-field" value={form.hero.registerCtaLabel} onChange={updateText("hero", "registerCtaLabel")} />
           </Field>
-          <Field label="Register CTA internal path">
-            <input className="input-field" value={form.hero.registerCtaPath} onChange={updateText("hero", "registerCtaPath")} />
-          </Field>
+
           <Field label="Galaxy search placeholder" span="md:col-span-2">
             <input className="input-field" value={form.hero.searchPlaceholder} onChange={updateText("hero", "searchPlaceholder")} />
           </Field>
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[.025] p-4 text-sm leading-6 text-white/45">
-          The Burger, Pizza, Momo, Kebab and Soda showcase visuals are permanent signature homepage assets and intentionally stay code-managed. Burger, Pizza, Momo and Kebab now use intact premium food heroes inspired by the Soda composition — no exploded-layer interaction. CMS edits change the copy/search experience without replacing those signature scenes.
         </div>
 
         <label className="mt-5 flex items-center gap-3 text-sm text-white/60">
@@ -222,10 +205,8 @@ export default function HomepageCmsManagement() {
           <Field label="View all label">
             <input className="input-field" value={form.restaurantsSection.viewAllLabel} onChange={updateText("restaurantsSection", "viewAllLabel")} />
           </Field>
-          <Field label="View all internal path">
-            <input className="input-field" value={form.restaurantsSection.viewAllPath} onChange={updateText("restaurantsSection", "viewAllPath")} />
-          </Field>
-          <Field label="Maximum featured Restaurants">
+
+          <Field label="Maximum restaurants shown">
             <input
               className="input-field"
               type="number"
@@ -237,14 +218,10 @@ export default function HomepageCmsManagement() {
               }
             />
           </Field>
-          <div className="md:col-span-2 rounded-2xl border border-white/10 bg-white/[.025] p-4 text-sm leading-6 text-white/50">
-              <strong className="text-white/75">Section order is locked:</strong> Intro → Burger → Pizza → Momo → Kebab → Soda → Search → Restaurants. Burger, Pizza, Momo, Kebab and Soda are permanent homepage sections and cannot be disabled or moved into a carousel. Burger/Pizza/Momo/Kebab remain intact food heroes; exploded-layer controls are intentionally retired.
-            </div>
+
         </div>
 
-        <p className="mt-5 text-sm leading-6 text-white/40">
-          Featured Restaurants and their order are controlled from Platform Admin → Restaurants.
-        </p>
+
       </section>
 
       <section className="surface rounded-3xl p-6 md:p-8">
@@ -298,10 +275,6 @@ export default function HomepageCmsManagement() {
             </select>
           </Field>
         </div>
-
-        <p className="mt-5 text-sm leading-6 text-white/40">
-          These are bounded presets only. The CMS never accepts arbitrary JavaScript or CSS.
-        </p>
       </section>
 
       <section className="surface rounded-3xl p-6 md:p-8">
@@ -333,30 +306,6 @@ export default function HomepageCmsManagement() {
           {state.saving ? "Saving…" : "Save Homepage"}
         </button>
       </div>
-
-      <section className="surface rounded-3xl p-6 md:p-8">
-        <p className="text-xs uppercase tracking-[.28em] text-white/35">Audit trail</p>
-        <h2 className="mt-3 font-display text-4xl">Recent Platform changes</h2>
-
-        <div className="mt-6 space-y-3">
-          {auditLogs.map((log) => (
-            <article key={log._id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-white/75">{log.action}</p>
-                <time className="text-xs text-white/30">
-                  {new Date(log.createdAt).toLocaleString()}
-                </time>
-              </div>
-              <p className="mt-2 text-xs text-white/35">
-                {log.actorUserId?.name || "Platform Admin"} · {log.entityType}
-              </p>
-            </article>
-          ))}
-          {!auditLogs.length && (
-            <p className="text-sm text-white/35">No audit events yet.</p>
-          )}
-        </div>
-      </section>
     </form>
   );
 }

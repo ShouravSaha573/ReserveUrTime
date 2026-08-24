@@ -97,7 +97,7 @@ export default function RestaurantMenuPage() {
             to={`/restaurant/${slug}`}
             className="text-xs uppercase tracking-[.2em] text-white/45 transition hover:text-white"
           >
-            ← Restaurant
+            <LottieFlowIcon name="arrow" className="rotate-180" /> Restaurant
           </Link>
           {restaurant && (
             <p className="text-xs uppercase tracking-[.24em] text-white/32">

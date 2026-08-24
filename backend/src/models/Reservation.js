@@ -26,6 +26,10 @@ const reservationSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    tableIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DiningTable"
+    }],
     orderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Order",
@@ -52,7 +56,7 @@ const reservationSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["pending", "confirmed", "completed", "cancelled"],
-      default: "confirmed",
+      default: "pending",
       index: true
     },
     heldUntil: {
@@ -82,6 +86,10 @@ const reservationSchema = new mongoose.Schema(
       sparse: true,
       index: true
     },
+    reservationKeys: {
+      type: [String],
+      default: undefined
+    },
     customerSlotKey: {
       type: String,
       unique: true,
@@ -96,6 +104,7 @@ const reservationSchema = new mongoose.Schema(
 );
 
 reservationSchema.index({ userId: 1, createdAt: -1 });
+reservationSchema.index({ reservationKeys: 1 }, { unique: true, sparse: true });
 reservationSchema.index({
   restaurantId: 1,
   reservationDate: 1,

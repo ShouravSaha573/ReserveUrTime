@@ -1,9 +1,11 @@
 import mongoose from "mongoose";
+import { MenuCategory } from "../models/MenuCategory.js";
+import { MenuItem } from "../models/MenuItem.js";
 import { Restaurant } from "../models/Restaurant.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const publicFields =
-  "name slug description logoUrl coverImageUrl cuisine location phone email openingHours theme isFeatured featuredOrder listingOrder";
+  "name slug description coverImageUrl cuisine location phone email openingHours theme";
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -21,23 +23,47 @@ export const listRestaurants = asyncHandler(async (req, res) => {
 
   if (query) {
     const matcher = new RegExp(escapeRegExp(query), "i");
+    const [itemRestaurantIds, categoryRestaurantIds] = await Promise.all([
+      MenuItem.distinct("restaurantId", {
+        isActive: true,
+        isAvailable: true,
+        $or: [
+          { name: matcher },
+          { description: matcher },
+          { ingredients: matcher }
+        ]
+      }),
+      MenuCategory.distinct("restaurantId", {
+        isActive: true,
+        $or: [
+          { name: matcher },
+          { description: matcher }
+        ]
+      })
+    ]);
+
+    const menuRestaurantIds = [...new Set([
+      ...itemRestaurantIds.map(String),
+      ...categoryRestaurantIds.map(String)
+    ])]
+      .filter((id) => mongoose.isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
     filter.$or = [
       { name: matcher },
-      { cuisine: matcher }
+      { cuisine: matcher },
+      { location: matcher },
+      { description: matcher }
     ];
-  }
 
-  if (String(req.query.featured).toLowerCase() === "true") {
-    filter.isFeatured = true;
+    if (menuRestaurantIds.length) {
+      filter.$or.push({ _id: mongoose.trusted({ $in: menuRestaurantIds }) });
+    }
   }
 
   const restaurants = await Restaurant.find(filter)
     .select(publicFields)
-    .sort(
-      filter.isFeatured
-        ? { featuredOrder: 1, listingOrder: 1, name: 1 }
-        : { listingOrder: 1, name: 1 }
-    )
+    .sort({ name: 1 })
     .limit(limit)
     .lean();
 

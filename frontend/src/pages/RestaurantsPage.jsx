@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import RestaurantCard from "../components/RestaurantCard";
 import GalaxyRestaurantSearch from "../components/GalaxyRestaurantSearch";
 import PageMessage from "../components/PageMessage";
+import LottieFlowIcon from "../components/LottieFlowIcon";
 import { apiFetch } from "../lib/api";
 
 export default function RestaurantsPage() {
@@ -78,10 +79,10 @@ export default function RestaurantsPage() {
           </span>
           <button
             type="button"
-            className="text-xs uppercase tracking-[.16em] text-white/65 hover:text-white"
+            className="inline-flex items-center gap-1.5 text-xs uppercase tracking-[.16em] text-white/65 hover:text-white"
             onClick={() => setSearchParams({})}
           >
-            Clear search ×
+            Clear search <LottieFlowIcon name="close" />
           </button>
         </div>
       )}

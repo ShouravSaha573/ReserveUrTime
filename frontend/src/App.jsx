@@ -37,7 +37,10 @@ const RestaurantAdminTablesPage = page("RestaurantAdminTablesPage");
 const RestaurantAdminReservationsPage = page("RestaurantAdminReservationsPage");
 const RestaurantAdminGalleryPage = page("RestaurantAdminGalleryPage");
 const RestaurantAdminOrdersPage = page("RestaurantAdminOrdersPage");
+const RestaurantAdminReservationMessagesPage = page("RestaurantAdminReservationMessagesPage");
+const RestaurantAdminTrashPage = page("RestaurantAdminTrashPage");
 const PlatformAdminChangeRequestsPage = page("PlatformAdminChangeRequestsPage");
+const AdminMessagesPage = page("AdminMessagesPage");
 const NotFoundPage = page("NotFoundPage");
 const ContactPage = page("ContactPage");
 
@@ -172,6 +175,14 @@ export default function App() {
           />
 
 
+          <Route
+            path="/platform-admin/admin-messages"
+            element={
+              <ProtectedRoute role="platform_admin" loginPath="/platform-admin/login">
+                <AdminMessagesPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/restaurant-admin/login" element={<RestaurantAdminLoginPage />} />
           <Route
             path="/restaurant-admin/dashboard"
@@ -245,6 +256,22 @@ export default function App() {
             }
           />
           <Route
+            path="/restaurant-admin/reservation-messages"
+            element={
+              <ProtectedRoute role="restaurant_admin" loginPath="/restaurant-admin/login">
+                <RestaurantAdminReservationMessagesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/restaurant-admin/admin-messages"
+            element={
+              <ProtectedRoute role="restaurant_admin" loginPath="/restaurant-admin/login">
+                <AdminMessagesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/restaurant-admin/gallery"
             element={
               <ProtectedRoute
@@ -252,6 +279,14 @@ export default function App() {
                 loginPath="/restaurant-admin/login"
               >
                 <RestaurantAdminGalleryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/restaurant-admin/trash"
+            element={
+              <ProtectedRoute role="restaurant_admin" loginPath="/restaurant-admin/login">
+                <RestaurantAdminTrashPage />
               </ProtectedRoute>
             }
           />

@@ -20,7 +20,7 @@ import {
 } from "../utils/validation.js";
 
 const restaurantFields =
-  "name slug description logoUrl coverImageUrl cuisine location phone email openingHours theme isFeatured featuredOrder listingOrder isActive createdAt updatedAt";
+  "name slug description coverImageUrl cuisine location phone email openingHours theme isActive createdAt updatedAt";
 
 function cleanText(value, maxLength = 500) {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -62,14 +62,12 @@ function restaurantPayload(body, { partial = false } = {}) {
   const textFields = [
     ["name", 120],
     ["description", 1200],
-    ["logoUrl", 800],
     ["coverImageUrl", 800],
     ["cuisine", 120],
     ["location", 180],
     ["phone", 60],
     ["email", 160],
-    ["openingHours", 220],
-    ["theme", 80]
+    ["openingHours", 220]
   ];
 
   for (const [field, max] of textFields) {
@@ -86,26 +84,6 @@ function restaurantPayload(body, { partial = false } = {}) {
     payload.isActive = strictBoolean(body.isActive, "Restaurant active state");
   } else if (!partial) {
     payload.isActive = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, "isFeatured")) {
-    payload.isFeatured = strictBoolean(body.isFeatured, "Restaurant featured state");
-  } else if (!partial) {
-    payload.isFeatured = false;
-  }
-
-  for (const field of ["featuredOrder", "listingOrder"]) {
-    if (Object.prototype.hasOwnProperty.call(body, field)) {
-      const parsed = Number.parseInt(body[field], 10);
-      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 9999) {
-        const error = new Error(`${field} must be a number from 0 to 9999.`);
-        error.status = 400;
-        throw error;
-      }
-      payload[field] = parsed;
-    } else if (!partial) {
-      payload[field] = 999;
-    }
   }
 
   if (!partial) {
@@ -137,7 +115,6 @@ function restaurantPayload(body, { partial = false } = {}) {
   }
 
   for (const [field, label] of [
-    ["logoUrl", "Restaurant logo"],
     ["coverImageUrl", "Restaurant cover image"]
   ]) {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
@@ -549,15 +526,11 @@ function homepagePayload(body) {
       titleAccent: cleanText(hero.titleAccent, 140),
       body: cleanText(hero.body, 800),
       browseCtaLabel: cleanText(hero.browseCtaLabel, 80),
-      browseCtaPath: safeInternalPath(
-        hero.browseCtaPath,
-        DEFAULT_SITE_CONTENT.hero.browseCtaPath
-      ),
+      browseCtaPath: DEFAULT_SITE_CONTENT.hero.browseCtaPath,
+
       registerCtaLabel: cleanText(hero.registerCtaLabel, 80),
-      registerCtaPath: safeInternalPath(
-        hero.registerCtaPath,
-        DEFAULT_SITE_CONTENT.hero.registerCtaPath
-      ),
+      registerCtaPath: DEFAULT_SITE_CONTENT.hero.registerCtaPath,
+
       searchEnabled:
         typeof hero.searchEnabled === "boolean"
           ? hero.searchEnabled
@@ -575,10 +548,8 @@ function homepagePayload(body) {
       eyebrow: cleanText(restaurantsSection.eyebrow, 120),
       title: cleanText(restaurantsSection.title, 140),
       viewAllLabel: cleanText(restaurantsSection.viewAllLabel, 80),
-      viewAllPath: safeInternalPath(
-        restaurantsSection.viewAllPath,
-        DEFAULT_SITE_CONTENT.restaurantsSection.viewAllPath
-      ),
+      viewAllPath: DEFAULT_SITE_CONTENT.restaurantsSection.viewAllPath,
+
       featuredLimit
     },
     footer: {

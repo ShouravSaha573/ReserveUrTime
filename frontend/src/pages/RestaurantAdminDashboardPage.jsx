@@ -18,25 +18,36 @@ export default function RestaurantAdminDashboardPage() {
       <h1 className="mt-5 font-display text-5xl md:text-7xl">
         {data?.restaurant?.name || "Restaurant dashboard"}
       </h1>
-      <p className="mt-5 max-w-3xl leading-7 text-white/55">
-        Your account is locked to one assigned Restaurant. Internal profile data belongs to Restaurant management; public name and listing image changes require Platform Admin approval.
-      </p>
       {error && <p className="mt-8 rounded-xl bg-red-400/10 p-4 text-red-200">{error}</p>}
 
       <RestaurantAdminSectionNav />
 
-      <div className="admin-metric-grid mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Assigned Restaurant</p><p className="mt-3 font-display text-3xl">{data?.restaurant?.name || "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Active tables</p><p className="mt-3 font-display text-5xl">{data?.summary?.tables ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Menu categories</p><p className="mt-3 font-display text-5xl">{data?.summary?.categories ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Active dishes</p><p className="mt-3 font-display text-5xl">{data?.summary?.dishes ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Orders</p><p className="mt-3 font-display text-5xl">{data?.summary?.orders ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Active orders</p><p className="mt-3 font-display text-5xl">{data?.summary?.activeOrders ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Reservations</p><p className="mt-3 font-display text-5xl">{data?.summary?.reservations ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Gallery items</p><p className="mt-3 font-display text-5xl">{data?.summary?.galleryItems ?? "—"}</p></div>
-        <div className="surface rounded-3xl p-6"><p className="text-sm text-white/40">Pending listing requests</p><p className="mt-3 font-display text-5xl">{data?.summary?.pendingChanges ?? "—"}</p></div>
-      </div>
-
+      <section className="admin-summary mt-12" aria-labelledby="restaurant-overview-title">
+        <div className="admin-summary-heading">
+          <p className="text-xs uppercase tracking-[.25em] text-white/35">Live overview</p>
+          <h2 id="restaurant-overview-title" className="mt-2 font-display text-4xl">Restaurant at a glance</h2>
+          <p>Current operational totals for {data?.restaurant?.name || "your assigned restaurant"}.</p>
+        </div>
+        <div className="admin-summary-grid">
+          {[
+            ["Assigned restaurant", data?.restaurant?.name || "—", "The restaurant managed by this account"],
+            ["Active dining tables", data?.summary?.tables ?? "—", "Tables currently available for service"],
+            ["Menu categories", data?.summary?.categories ?? "—", "Sections organizing the restaurant menu"],
+            ["Active menu dishes", data?.summary?.dishes ?? "—", "Published dishes guests can order"],
+            ["Total food orders", data?.summary?.orders ?? "—", "All food orders recorded for this restaurant"],
+            ["Orders in progress", data?.summary?.activeOrders ?? "—", "Orders currently requiring attention"],
+            ["Total reservations", data?.summary?.reservations ?? "—", "Reservations recorded for this restaurant"],
+            ["Published gallery images", data?.summary?.galleryItems ?? "—", "Images visible in the restaurant gallery"],
+            ["Listing changes awaiting approval", data?.summary?.pendingChanges ?? "—", "Requests waiting for Platform Admin review"]
+          ].map(([label, value, description]) => (
+            <article key={label} className="admin-summary-item">
+              <p>{label}</p>
+              <strong>{value}</strong>
+              <small>{description}</small>
+            </article>
+          ))}
+        </div>
+      </section>
       {data?.restaurant && (
         <section className="surface mt-8 rounded-3xl p-6 md:p-8">
           <p className="text-xs uppercase tracking-[.25em] text-white/35">Current platform listing (read only here)</p>

@@ -2,7 +2,6 @@ import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { gsap } from "gsap";
-import "@google/model-viewer";
 import GalaxyRestaurantSearch from "./GalaxyRestaurantSearch";
 import PhotorealFoodHero from "./motion/PhotorealFoodHero";
 
@@ -149,7 +148,9 @@ function IntroHero({ content }) {
         >
           <p className="premium-food-eyebrow">FIND YOUR TABLE</p>
           <h2>Where would you like to eat?</h2>
-          <GalaxyRestaurantSearch placeholder={content?.hero?.searchPlaceholder || "Search a restaurant or cuisine..."} />
+          <GalaxyRestaurantSearch placeholder={content?.hero?.searchPlaceholder === "Search a restaurant or cuisine..."
+            ? "Search restaurants, food, categories or locations..."
+            : content?.hero?.searchPlaceholder || "Search restaurants, food, categories or locations..."} />
         </motion.div>
       )}
     </section>
@@ -233,12 +234,17 @@ function SodaHero() {
   const berryRefs = useRef([]);
   const reduced = useReducedMotion();
   const [flavor, setFlavor] = useState("classic");
+  const [berryFlavor, setBerryFlavor] = useState("classic");
   const [ready, setReady] = useState(false);
+  const [modelViewerReady, setModelViewerReady] = useState(() => Boolean(customElements.get("model-viewer")));
+  const [decorCount, setDecorCount] = useState(0);
   const textures = useRef({ green: null, blue: null });
+  const texturePromises = useRef({ green: null, blue: null });
   const mouse = useRef({ x: 0, y: 0 });
   const current = useRef({ x: 0, y: 0 });
   const switchSpin = useRef(0);
   const switching = useRef(false);
+  const selectedFlavor = useRef("classic");
 
   const searchCategory = (query) => {
     window.dispatchEvent(new CustomEvent("reserveurtime:set-search", { detail: { query } }));
@@ -247,19 +253,53 @@ function SodaHero() {
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || customElements.get("model-viewer")) return undefined;
+    if (!stage) return undefined;
+    if (customElements.get("model-viewer")) {
+      setModelViewerReady(true);
+      return undefined;
+    }
+    let cancelled = false;
     const observer = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting || customElements.get("model-viewer") || document.querySelector("script[data-model-viewer]")) return;
-      const script = document.createElement("script");
-      script.type = "module";
-      script.src = "https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js";
-      script.dataset.modelViewer = "true";
-      document.head.appendChild(script);
+      if (!entry.isIntersecting || customElements.get("model-viewer")) return;
       observer.disconnect();
-    }, { rootMargin: "1200px 0px" });
+      import("@google/model-viewer")
+        .then(() => customElements.whenDefined("model-viewer"))
+        .then(() => {
+          if (!cancelled) setModelViewerReady(true);
+        })
+        .catch(() => {
+          if (!cancelled) setModelViewerReady(false);
+        });
+    }, { rootMargin: "1000px 0px" });
     observer.observe(stage);
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+}, []);
+
+  useEffect(() => {
+    if (!modelViewerReady || !ready) return undefined;
+    let cancelled = false;
+    let timer = 0;
+    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 350));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const idleTask = schedule(() => {
+      let revealed = 0;
+      const revealNext = () => {
+        if (cancelled) return;
+        revealed = Math.min(revealed + 2, 13);
+        setDecorCount(revealed);
+        if (revealed < 13) timer = window.setTimeout(revealNext, 140);
+      };
+      revealNext();
+    }, { timeout: 1200 });
+    return () => {
+      cancelled = true;
+      cancel(idleTask);
+      window.clearTimeout(timer);
+    };
+  }, [modelViewerReady, ready]);
 
   useEffect(() => {
     const model = modelRef.current;
@@ -267,86 +307,196 @@ function SodaHero() {
     if (!model || !stage) return undefined;
 
     let raf = 0;
+    let active = false;
     const onMove = (event) => {
       const rect = stage.getBoundingClientRect();
       mouse.current.x = (event.clientX - rect.left) / rect.width - 0.5;
       mouse.current.y = (event.clientY - rect.top) / rect.height - 0.5;
     };
     const onLeave = () => { mouse.current.x = 0; mouse.current.y = 0; };
-    const onLoad = async () => {
+    const onLoad = () => {
       setReady(true);
-      try {
-        textures.current.blue = await model.createTexture(SODA.blueTexture);
-        textures.current.green = await model.createTexture(SODA.greenTexture);
-        if (model.model && textures.current.green) {
-          model.model.materials.forEach((material) => {
-            const slot = material?.pbrMetallicRoughness?.baseColorTexture;
-            if (slot) slot.setTexture(textures.current.green);
-          });
-        }
-      } catch { /* base GLB remains visible */ }
     };
     const animate = () => {
-      current.current.x += (mouse.current.x - current.current.x) * 0.05;
-      current.current.y += (mouse.current.y - current.current.y) * 0.05;
-      if (!reduced) {
+      if (!active) {
+        raf = 0;
+        return;
+      }
+      const deltaX = mouse.current.x - current.current.x;
+      const deltaY = mouse.current.y - current.current.y;
+      const isMoving = Math.abs(deltaX) > 0.0001 || Math.abs(deltaY) > 0.0001 || switchSpin.current !== 0;
+      if (isMoving && !reduced) {
+        current.current.x += deltaX * 0.08;
+        current.current.y += deltaY * 0.08;
         model.cameraOrbit = `${current.current.x * 40 + switchSpin.current}deg ${90 + current.current.y * 20}deg 380%`;
         stage.style.setProperty("--soda-x", current.current.x.toFixed(4));
         stage.style.setProperty("--soda-y", current.current.y.toFixed(4));
       }
       raf = requestAnimationFrame(animate);
     };
+    const startAnimation = () => {
+      active = true;
+      if (!raf && !document.hidden) raf = requestAnimationFrame(animate);
+    };
+    const stopAnimation = () => {
+      active = false;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) stopAnimation();
+      else {
+        const rect = stage.getBoundingClientRect();
+        if (rect.bottom >= 0 && rect.top <= window.innerHeight) startAnimation();
+      }
+    };
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) startAnimation();
+      else stopAnimation();
+    });
 
     model.addEventListener("load", onLoad);
     stage.addEventListener("mousemove", onMove);
     stage.addEventListener("mouseleave", onLeave);
-    raf = requestAnimationFrame(animate);
+    visibilityObserver.observe(stage);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      cancelAnimationFrame(raf);
+      stopAnimation();
+      visibilityObserver.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       model.removeEventListener("load", onLoad);
       stage.removeEventListener("mousemove", onMove);
       stage.removeEventListener("mouseleave", onLeave);
     };
-  }, [reduced]);
+  }, [reduced, modelViewerReady]);
+
+  const loadFlavorTexture = async (nextFlavor) => {
+    const model = modelRef.current;
+    if (!model?.createTexture) return null;
+    const key = nextFlavor === "blue" ? "blue" : "green";
+    if (textures.current[key]) return textures.current[key];
+    if (!texturePromises.current[key]) {
+      texturePromises.current[key] = model
+        .createTexture(nextFlavor === "blue" ? SODA.blueTexture : SODA.greenTexture)
+        .then((texture) => {
+          textures.current[key] = texture;
+          return texture;
+        })
+        .finally(() => { texturePromises.current[key] = null; });
+    }
+    return texturePromises.current[key];
+  };
+
+  const warmFlavor = (nextFlavor) => {
+    if (!ready || nextFlavor === flavor) return;
+    loadFlavorTexture(nextFlavor).catch(() => {});
+  };
+
+  const applyFlavorTexture = (texture) => {
+    const model = modelRef.current;
+    if (!model?.model || !texture) return;
+    model.model.materials.forEach((material) => {
+      const slot = material?.pbrMetallicRoughness?.baseColorTexture;
+      if (slot) slot.setTexture(texture);
+    });
+  };
+
+  useEffect(() => {
+    if (!ready) return undefined;
+    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1200));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const task = schedule(() => loadFlavorTexture("blue").catch(() => {}), { timeout: 4000 });
+    return () => cancel(task);
+  }, [ready]);
 
   const switchFlavor = (nextFlavor) => {
     if (nextFlavor === flavor || switching.current) return;
     setFlavor(nextFlavor);
+    selectedFlavor.current = nextFlavor;
     const model = modelRef.current;
-    if (!model || reduced) return;
+    const berries = berryRefs.current.filter(Boolean);
+
+    if (!model) {
+      setBerryFlavor(nextFlavor);
+      return;
+    }
+
     switching.current = true;
+    const pendingTexture = loadFlavorTexture(nextFlavor).catch(() => null);
+    pendingTexture.then((texture) => {
+      if (texture && selectedFlavor.current === nextFlavor) applyFlavorTexture(texture);
+    });
+    const texturePromise = Promise.race([
+      pendingTexture,
+      new Promise((resolve) => window.setTimeout(() => resolve(null), 180))
+    ]);
+
+    if (reduced) {
+      texturePromise.then((texture) => {
+        applyFlavorTexture(texture);
+        setBerryFlavor(nextFlavor);
+        switching.current = false;
+      });
+      return;
+    }
+
+    if (berries.length) {
+      gsap.killTweensOf(berries);
+      gsap.to(berries, {
+        opacity: 0,
+        scale: 0.72,
+        duration: 0.2,
+        stagger: 0.012,
+        ease: "power2.in",
+        overwrite: true,
+        onComplete: () => {
+          setBerryFlavor(nextFlavor);
+          gsap.to(berries, {
+            opacity: 1,
+            scale: 1,
+            duration: 0.42,
+            stagger: 0.018,
+            delay: 0.08,
+            ease: "power2.out",
+            overwrite: true
+          });
+        }
+      });
+    } else {
+      setBerryFlavor(nextFlavor);
+    }
+
     const spinObj = { val: 0, blur: 0 };
     gsap.to(spinObj, {
-      val: 360, blur: 15, duration: 0.6, ease: "power2.in",
-      onUpdate: () => { switchSpin.current = spinObj.val; model.style.filter = `blur(${spinObj.blur}px)`; },
-      onComplete: () => {
-        const texture = nextFlavor === "blue" ? textures.current.blue : textures.current.green;
-        try {
-          if (model.model && texture) {
-            model.model.materials.forEach((material) => {
-              const slot = material?.pbrMetallicRoughness?.baseColorTexture;
-              if (slot) slot.setTexture(texture);
-            });
-          }
-        } catch { /* keep existing material */ }
-
-        berryRefs.current.forEach((berry, index) => {
-          if (!berry) return;
-          const rect = berry.getBoundingClientRect();
-          const stageRect = stageRef.current?.getBoundingClientRect();
-          if (!stageRect) return;
-          const centerX = stageRect.left + stageRect.width / 2 - (rect.left + rect.width / 2);
-          const centerY = stageRect.top + stageRect.height / 2 - (rect.top + rect.height / 2);
-          gsap.timeline()
-            .to(berry, { x: centerX, y: centerY, scale: 0.1, opacity: 0, duration: 0.5, ease: "power2.in", delay: index * 0.015 })
-            .add(() => { berry.src = nextFlavor === "blue" ? SODA.blueberry : SODA.cherry; })
-            .to(berry, { x: (Math.random() - 0.5) * 180, y: (Math.random() - 0.5) * 180, scale: 1, opacity: 1, duration: 0.9, ease: "back.out(1.5)" });
-        });
+      val: 180,
+      blur: 7,
+      duration: 0.3,
+      ease: "power2.in",
+      onUpdate: () => {
+        switchSpin.current = spinObj.val;
+        model.style.filter = `blur(${spinObj.blur}px)`;
+      },
+      onComplete: async () => {
+        const texture = await texturePromise;
+        try { applyFlavorTexture(texture); } catch { /* keep the current material */ }
 
         gsap.to(spinObj, {
-          val: 720, blur: 0, duration: 1.5, ease: "back.out(0.7)",
-          onUpdate: () => { switchSpin.current = spinObj.val; model.style.filter = `blur(${spinObj.blur}px)`; },
-          onComplete: () => { switchSpin.current = 0; model.style.filter = "none"; switching.current = false; }
+          val: 360,
+          blur: 0,
+          duration: 0.62,
+          ease: "power3.out",
+          onUpdate: () => {
+            switchSpin.current = spinObj.val;
+            model.style.filter = `blur(${spinObj.blur}px)`;
+          },
+          onComplete: () => {
+            switchSpin.current = 0;
+            model.style.filter = "none";
+            switching.current = false;
+            if (nextFlavor === "blue") {
+              window.setTimeout(() => loadFlavorTexture("classic").catch(() => {}), 250);
+            }
+          }
         });
       }
     });
@@ -369,29 +519,29 @@ function SodaHero() {
         <div className="premium-soda-award"><b>DESIGN FEATURE</b><small>INTERACTIVE BEVERAGE HERO</small></div>
       </div>
 
-      <div className="premium-soda-object-layer premium-soda-leaves" aria-hidden="true">
-        {[0, 1, 2, 3].map((index) => <model-viewer key={index} src={SODA.leaves} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-leaf leaf-${index + 1}`} />)}
-      </div>
-      <div className="premium-soda-object-layer premium-soda-berries-bg" aria-hidden="true">
-        {[6, 7, 8].map((index) => <model-viewer key={index} ref={(node) => { berryRefs.current[index] = node; }} src={flavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
-      </div>
+      {decorCount > 0 && <div className="premium-soda-object-layer premium-soda-leaves" aria-hidden="true">
+        {[0, 1, 2, 3].slice(0, Math.min(decorCount, 4)).map((index) => <model-viewer key={index} loading="lazy" src={SODA.leaves} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-leaf leaf-${index + 1}`} />)}
+      </div>}
+      {decorCount > 4 && <div className="premium-soda-object-layer premium-soda-berries-bg" aria-hidden="true">
+        {[6, 7, 8].slice(0, Math.max(0, decorCount - 4)).map((index) => <model-viewer key={index} loading="lazy" ref={(node) => { berryRefs.current[index] = node; }} src={berryFlavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
+      </div>}
 
       <div className="premium-soda-center">
-        <model-viewer ref={modelRef} src={SODA.can} alt="Floating 3D diet soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className="premium-soda-can" />
-        {!ready && <span className="premium-soda-loading">Loading 3D can…</span>}
+        {!ready && <img className="premium-soda-can-fallback" src={flavor === "blue" ? SODA.blueCard : SODA.greenCard} alt="" loading="lazy" decoding="async" fetchPriority="low" />}
+        {modelViewerReady && <model-viewer ref={modelRef} loading="eager" reveal="auto" poster={flavor === "blue" ? SODA.blueCard : SODA.greenCard} src={SODA.can} alt="Floating 3D diet soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className={`premium-soda-can ${ready ? "is-ready" : ""}`} />}
       </div>
 
-      <div className="premium-soda-object-layer premium-soda-berries-fg" aria-hidden="true">
-        {[0, 1, 2, 3, 4, 5].map((index) => <model-viewer key={index} ref={(node) => { berryRefs.current[index] = node; }} src={flavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1.15" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
-      </div>
+      {decorCount > 7 && <div className="premium-soda-object-layer premium-soda-berries-fg" aria-hidden="true">
+        {[0, 1, 2, 3, 4, 5].slice(0, Math.max(0, decorCount - 7)).map((index) => <model-viewer key={index} loading="lazy" ref={(node) => { berryRefs.current[index] = node; }} src={berryFlavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1.15" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
+      </div>}
 
       <div className="premium-soda-right">
         <div className="premium-soda-cards" role="group" aria-label="Soda flavor">
-          <button type="button" className={flavor === "classic" ? "is-active" : ""} onClick={() => switchFlavor("classic")}>
-            <img src={SODA.greenCard} alt="Diet Classic soda" /><span><b>Diet Classic</b><small>Classic</small></span>
+          <button type="button" className={flavor === "classic" ? "is-active" : ""} onPointerEnter={() => warmFlavor("classic")} onFocus={() => warmFlavor("classic")} onClick={() => switchFlavor("classic")}>
+            <img src={SODA.greenCard} alt="Diet Classic soda" loading="lazy" decoding="async" fetchPriority="low" /><span><b>Diet Classic</b><small>Classic</small></span>
           </button>
-          <button type="button" className={flavor === "blue" ? "is-active" : ""} onClick={() => switchFlavor("blue")}>
-            <img src={SODA.blueCard} alt="Zero Lime soda" /><span><b>Zero Lime</b><small>Lime</small></span>
+          <button type="button" className={flavor === "blue" ? "is-active" : ""} onPointerEnter={() => warmFlavor("blue")} onFocus={() => warmFlavor("blue")} onClick={() => switchFlavor("blue")}>
+            <img src={SODA.blueCard} alt="Zero Lime soda" loading="lazy" decoding="async" fetchPriority="low" /><span><b>Zero Lime</b><small>Lime</small></span>
           </button>
         </div>
         <h3><span>Refreshingly</span><br />Clean</h3>

@@ -1,5 +1,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import { NavLink } from "react-router-dom";
+import AdminMessageBadge from "./AdminMessageBadge";
+import ReservationMessageBadge from "./ReservationMessageBadge";
 
 const links = [
   ["Dashboard", "/restaurant-admin/dashboard"],
@@ -8,8 +10,11 @@ const links = [
   ["Tables", "/restaurant-admin/tables"],
   ["Orders", "/restaurant-admin/orders"],
   ["Reservations", "/restaurant-admin/reservations"],
+  ["Guest Messages", "/restaurant-admin/reservation-messages"],
+  ["Admin Messages", "/restaurant-admin/admin-messages"],
   ["Gallery", "/restaurant-admin/gallery"],
-  ["Listing Requests", "/restaurant-admin/listing-requests"]
+  ["Listing Requests", "/restaurant-admin/listing-requests"],
+  ["Trash", "/restaurant-admin/trash"]
 ];
 
 export default function RestaurantAdminSectionNav() {
@@ -24,7 +29,7 @@ export default function RestaurantAdminSectionNav() {
     >
       {links.map(([label, to]) => (
         <NavLink key={to} to={to} className={({ isActive }) => `rounded-xl px-4 py-2 text-sm transition ${isActive ? "bg-white text-black" : "text-white/55 hover:bg-white/5 hover:text-white"}`}>
-          {label}
+          {label}{to.endsWith("admin-messages") ? <AdminMessageBadge /> : null}{to.endsWith("reservation-messages") ? <ReservationMessageBadge /> : null}
         </NavLink>
       ))}
     </motion.nav>

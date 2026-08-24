@@ -55,10 +55,6 @@ export default function RestaurantAdminLoginPage() {
           Restaurant management
         </p>
         <h1 className="mt-5 font-display text-5xl">Restaurant Admin access</h1>
-        <p className="mt-4 text-sm leading-6 text-white/45">
-          Restaurant Admin accounts are created and assigned to exactly one
-          restaurant. There is no public management registration.
-        </p>
 
         <div className="mt-8 space-y-5">
           <label className="block">

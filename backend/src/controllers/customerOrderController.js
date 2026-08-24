@@ -49,7 +49,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     checkoutKey: req.body.checkoutKey,
     reservation: req.body.reservation
   });
-  res.status(201).json({ message: "Table reserved and food order placed.", order });
+  res.status(201).json({ message: "Order created and table held temporarily. Complete payment to confirm the reservation.", order });
 });
 
 export const customerOrders = asyncHandler(async (req, res) => {

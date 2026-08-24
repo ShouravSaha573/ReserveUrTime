@@ -34,7 +34,7 @@ const galleryItemSchema = new mongoose.Schema(
     },
     displayOrder: {
       type: Number,
-      default: 999,
+      default: 0,
       min: 0,
       max: 9999,
       index: true

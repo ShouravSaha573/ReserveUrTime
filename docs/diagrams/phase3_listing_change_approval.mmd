@@ -1,9 +1,0 @@
-flowchart TD
-  RA[Restaurant Admin] -->|Edit internal profile| RP[RestaurantProfile]
-  RA -->|Request public name/image change| LCR[ListingChangeRequest: pending]
-  LCR --> PA[Platform Admin Approval Inbox]
-  PA -->|Reject| RJ[status = rejected]
-  PA -->|Approve| TX[MongoDB transaction]
-  TX --> R[Restaurant name OR coverImageUrl updated]
-  TX --> AP[status = approved + reviewed/applied timestamps]
-  R --> PUB[Homepage / Restaurants tab / public Restaurant API]

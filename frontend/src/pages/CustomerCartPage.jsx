@@ -40,23 +40,38 @@ export default function CustomerCartPage() {
     refreshCart
   } = useCart();
   const [notes, setNotes] = useState("");
-  const [reservation, setReservation] = useState({ reservationDate: "", timeSlot: "19:00", guestCount: 2 });
+  const [reservation, setReservation] = useState({ reservationDate: "", timeSlot: "19:00", guestCount: 2, selectedTableIds: [] });
   const [availability, setAvailability] = useState(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   const checkoutKeyRef = useRef(createCheckoutKey());
   const paymentKeyRef = useRef(createPaymentKey());
+  const selectedCapacity = (availability?.tables || []).filter((table) => reservation.selectedTableIds.includes(table._id)).reduce((sum, table) => sum + Number(table.capacity || 0), 0);
+  const tableSelectionReady = Boolean(availability?.available) && reservation.selectedTableIds.length === availability.requiredTableCount && selectedCapacity >= reservation.guestCount;
 
   function updateReservation(event) {
     const value = event.target.name === "guestCount" ? Number(event.target.value) : event.target.value;
-    setReservation((current) => ({ ...current, [event.target.name]: value }));
+    setReservation((current) => ({ ...current, [event.target.name]: value, selectedTableIds: [] }));
     setAvailability(null);
     setCheckoutError("");
   }
 
   async function checkTableAvailability() {
-    if (!restaurant?._id || !reservation.reservationDate) return;
+    setAvailabilityError("");
+    if (!restaurant?._id) {
+      setAvailabilityError("The cart restaurant is unavailable. Refresh the cart and try again.");
+      return;
+    }
+    if (!reservation.reservationDate) {
+      setAvailabilityError("Choose a reservation date first.");
+      return;
+    }
+    if (!Number.isInteger(reservation.guestCount) || reservation.guestCount < 1 || reservation.guestCount > 12) {
+      setAvailabilityError("Guest count must be between 1 and 12.");
+      return;
+    }
     setCheckingAvailability(true);
     setCheckoutError("");
     try {
@@ -65,14 +80,33 @@ export default function CustomerCartPage() {
         timeSlot: reservation.timeSlot,
         guestCount: String(reservation.guestCount)
       });
-      setAvailability(await apiFetch(`/restaurants/${restaurant._id}/availability?${query}`));
+      const data = await apiFetch(`/restaurants/${restaurant._id}/availability?${query}`);
+      setAvailability(data);
+      setReservation((current) => ({ ...current, selectedTableIds: data.recommendedTableIds || [] }));
     } catch (error) {
-      setCheckoutError(error.message);
+      setAvailability(null);
+      setAvailabilityError(error.message);
     } finally {
       setCheckingAvailability(false);
     }
   }
+  function chooseTime(timeSlot) {
+    const slot = availability?.slots?.find((entry) => entry.timeSlot === timeSlot);
+    if (!slot?.available) return;
+    setAvailability((current) => ({ ...current, ...slot }));
+    setReservation((current) => ({ ...current, timeSlot, selectedTableIds: slot.recommendedTableIds || [] }));
+  }
 
+  function toggleTable(tableId) {
+    const table = availability?.tables?.find((entry) => entry._id === tableId);
+    if (!table?.available) return;
+    setReservation((current) => {
+      const selected = current.selectedTableIds || [];
+      if (selected.includes(tableId)) return { ...current, selectedTableIds: selected.filter((id) => id !== tableId) };
+      if (selected.length >= Number(availability?.requiredTableCount || 1)) return current;
+      return { ...current, selectedTableIds: [...selected, tableId] };
+    });
+  }
   async function placeOrderAndPay() {
     if (!items.length || placing) return;
     if (!reservation.reservationDate) {
@@ -95,7 +129,8 @@ export default function CustomerCartPage() {
       const payment = await apiFetch(`/customer/orders/${order._id}/payments/sslcommerz`, {
         method: "POST",
         retryGet: false,
-        body: { paymentKey: paymentKeyRef.current }
+        body: { paymentKey: paymentKeyRef.current },
+        timeoutMs: 40_000
       });
 
       checkoutKeyRef.current = createCheckoutKey();
@@ -148,7 +183,7 @@ export default function CustomerCartPage() {
       )}
 
       {!loading && items.length > 0 && (
-        <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_23rem] lg:items-start">
+        <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_30rem] lg:items-start">
           <section className="space-y-3">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -176,9 +211,9 @@ export default function CustomerCartPage() {
                   </button>
                 </div>
                 <div className="cart-quantity-control" aria-label={`Quantity for ${item.name}`}>
-                  <button type="button" disabled={itemBusy || item.quantity <= 1} onClick={() => updateItem(item.menuItemId, item.quantity - 1)}>−</button>
+                  <button type="button" aria-label={`Decrease ${item.name} quantity`} disabled={itemBusy || item.quantity <= 1} onClick={() => updateItem(item.menuItemId, item.quantity - 1)}><LottieFlowIcon name="minus" /></button>
                   <span>{item.quantity}</span>
-                  <button type="button" aria-label={`Increase ${item.name} quantity`} disabled={itemBusy || item.quantity >= 20} onClick={() => updateItem(item.menuItemId, item.quantity + 1)}><LottieFlowIcon name="success" /></button>
+                  <button type="button" aria-label={`Increase ${item.name} quantity`} disabled={itemBusy || item.quantity >= 20} onClick={() => updateItem(item.menuItemId, item.quantity + 1)}><LottieFlowIcon name="plus" /></button>
                 </div>
                 <p className="cart-line-total">৳{Number(item.lineTotal).toLocaleString("en-BD")}</p>
               </article>
@@ -205,13 +240,46 @@ export default function CustomerCartPage() {
                 <input className="input-field mt-2" type="number" name="guestCount" min="1" max="12" value={reservation.guestCount} onChange={updateReservation} />
               </label>
             </div>
-            <button type="button" className="btn-secondary mt-4 w-full justify-center" onClick={checkTableAvailability} disabled={!reservation.reservationDate || checkingAvailability}>
+            <button type="button" className="btn-secondary mt-4 w-full justify-center" onClick={checkTableAvailability} disabled={checkingAvailability}>
               {checkingAvailability ? "Checking table…" : "Check table availability"}
             </button>
+            {availabilityError && <p role="alert" className="mt-3 rounded-xl border border-red-200/15 bg-red-200/[.05] px-3 py-2 text-sm text-red-100">{availabilityError}</p>}
             {availability ? (
-              <p className={`mt-3 rounded-xl px-3 py-2 text-xs ${availability.available ? "bg-emerald-400/10 text-emerald-200" : "bg-amber-300/10 text-amber-100"}`}>
-                {availability.available ? `${availability.availableTableCount} suitable table(s) available.` : "No suitable table is available for this time."}
-              </p>
+              <div className="mt-5 space-y-5">
+                <div>
+                  <p className="text-xs uppercase tracking-[.2em] text-white/35">Available hours</p>
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {availability.slots.map((slot) => (
+                      <button key={slot.timeSlot} type="button" disabled={!slot.available} onClick={() => chooseTime(slot.timeSlot)} className={`rounded-xl border px-2 py-3 text-xs transition ${reservation.timeSlot === slot.timeSlot ? "border-white bg-white text-black" : slot.available ? "border-emerald-200/20 bg-emerald-200/[.05] text-emerald-100 hover:border-emerald-100/45" : "cursor-not-allowed border-red-200/10 bg-red-200/[.035] text-red-200/35 line-through"}`}>{slot.timeSlot}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className={`rounded-2xl border p-4 ${availability.available ? "border-emerald-200/15 bg-emerald-200/[.04]" : "border-amber-200/15 bg-amber-200/[.04]"}`}>
+                  <strong className="text-sm font-medium">{availability.requiredTableCount} table{availability.requiredTableCount === 1 ? "" : "s"} required</strong>
+                  <p className="mt-1 text-xs leading-5 text-white/45">{reservation.guestCount} guests ÷ 4 seats = {availability.requiredTableCount} table{availability.requiredTableCount === 1 ? "" : "s"}. Choose the table number{availability.requiredTableCount === 1 ? "" : "s"} below.</p>
+                  <p className="mt-2 text-xs text-white/65">Selected seating: {selectedCapacity} of {reservation.guestCount} required.</p>
+                </div>
+                {[...new Set((availability.tables || []).map((table) => table.area))].map((area) => (
+                  <section key={area}>
+                    <p className="text-xs uppercase tracking-[.2em] text-white/35">{area}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      {(availability.tables || []).filter((table) => table.area === area).map((table) => {
+                        const selected = reservation.selectedTableIds.includes(table._id);
+                        return (
+                          <button key={table._id} type="button" disabled={!table.available} onClick={() => toggleTable(table._id)} className={`relative min-h-28 rounded-2xl border p-3 transition ${selected ? "border-white bg-white text-black shadow-[0_0_28px_rgba(255,255,255,.18)]" : table.available ? "border-white/12 bg-white/[.035] text-white hover:border-white/35" : "cursor-not-allowed border-red-200/10 bg-red-200/[.025] text-white/25"}`}>
+                            <span className="absolute left-1/2 top-2 h-2 w-7 -translate-x-1/2 rounded-full border border-current opacity-50" />
+                            <span className="absolute bottom-2 left-1/2 h-2 w-7 -translate-x-1/2 rounded-full border border-current opacity-50" />
+                            <span className="absolute left-2 top-1/2 h-7 w-2 -translate-y-1/2 rounded-full border border-current opacity-50" />
+                            <span className="absolute right-2 top-1/2 h-7 w-2 -translate-y-1/2 rounded-full border border-current opacity-50" />
+                            <span className="mx-auto flex h-16 w-20 flex-col items-center justify-center rounded-xl border border-current/30"><strong className="font-display text-2xl">{table.tableNumber}</strong><small className="text-[.62rem] uppercase tracking-wider opacity-60">{table.capacity} seats</small></span>
+                            <span className="mt-1 block text-[.62rem] uppercase tracking-wider opacity-55">{table.available ? selected ? "Selected" : "Available" : "Unavailable"}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
             ) : null}
 
             <p className="mt-8 text-xs uppercase tracking-[.24em] text-white/32">Combined summary</p>
@@ -246,8 +314,8 @@ export default function CustomerCartPage() {
 
             {checkoutError && <p className="mt-4 text-sm text-red-200">{checkoutError}</p>}
 
-            <button type="button" onClick={placeOrderAndPay} disabled={placing || busy || !reservation.reservationDate || availability?.available === false} className="btn-primary mt-6 w-full justify-center">
-              {placing ? "Reserving…" : "Reserve Table"}
+            <button type="button" onClick={placeOrderAndPay} disabled={placing || busy || !reservation.reservationDate || !tableSelectionReady} className="btn-primary mt-6 w-full justify-center">
+              {placing ? "Opening secure payment..." : "Pay with SSLCOMMERZ & Reserve Table"}
             </button>
           </aside>
         </div>

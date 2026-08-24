@@ -113,8 +113,8 @@ export default function HomePage() {
           {!restaurantsLoading && !restaurantsError && restaurants.length > 0 && (
             <div className="homepage-restaurants-view-all">
               <Link to={content.restaurantsSection.viewAllPath}>
-                <span>{content.restaurantsSection.viewAllLabel}</span>
-                <LottieFlowIcon name="arrow" className="rotate-180" />
+                <span>{content.restaurantsSection.viewAllLabel.replace(/[→←]/g, "").trim()}</span>
+                <LottieFlowIcon name="arrow" />
               </Link>
             </div>
           )}

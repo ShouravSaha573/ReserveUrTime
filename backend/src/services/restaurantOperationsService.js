@@ -65,9 +65,6 @@ export function menuCategoryPayload(body, { partial = false } = {}) {
   if (!partial || Object.prototype.hasOwnProperty.call(body, "description")) {
     payload.description = cleanText(body.description, 500);
   }
-  if (!partial || Object.prototype.hasOwnProperty.call(body, "displayOrder")) {
-    payload.displayOrder = integerField(body.displayOrder, "Display order");
-  }
   if (Object.prototype.hasOwnProperty.call(body, "isActive")) {
     payload.isActive = strictBoolean(body.isActive, "Active state");
   } else if (!partial) {
@@ -116,9 +113,6 @@ export function menuItemPayload(body, { partial = false } = {}) {
   }
   if (!partial || Object.prototype.hasOwnProperty.call(body, "price")) {
     payload.price = priceField(body.price);
-  }
-  if (!partial || Object.prototype.hasOwnProperty.call(body, "displayOrder")) {
-    payload.displayOrder = integerField(body.displayOrder, "Display order");
   }
   if (!partial || Object.prototype.hasOwnProperty.call(body, "categoryId")) {
     assertObjectId(body.categoryId, "category id");
@@ -210,9 +204,6 @@ export function galleryItemPayload(body, { partial = false } = {}) {
           ? publicMediaUrl(body[field], "Gallery image", max)
           : cleanText(body[field], max);
     }
-  }
-  if (!partial || Object.prototype.hasOwnProperty.call(body, "displayOrder")) {
-    payload.displayOrder = integerField(body.displayOrder, "Display order");
   }
   if (Object.prototype.hasOwnProperty.call(body, "isPublished")) {
     payload.isPublished = strictBoolean(body.isPublished, "Gallery publish state");

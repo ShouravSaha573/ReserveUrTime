@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import LottieFlowIcon from "../components/LottieFlowIcon";
 import CustomerDashboardNav from "../components/CustomerDashboardNav";
 import PageMessage from "../components/PageMessage";
 import { useFavorites } from "../context/FavoritesContext";
@@ -44,7 +45,7 @@ export default function CustomerFavouritesPage() {
                   <p className="text-xs uppercase tracking-[.2em] text-white/35">{restaurant.cuisine}</p>
                   <h3 className="mt-3 font-display text-3xl">{restaurant.name}</h3>
                   <p className="mt-2 text-sm text-white/45">{restaurant.location}</p>
-                  <Link to={`/restaurant/${restaurant.slug}`} className="mt-5 inline-flex text-sm text-white/75 hover:text-white">Open Restaurant →</Link>
+                  <Link to={`/restaurant/${restaurant.slug}`} className="mt-5 inline-flex items-center gap-2 text-sm text-white/75 hover:text-white">Open Restaurant <LottieFlowIcon name="arrow" /></Link>
                 </div>
               </article>
             ))}
@@ -71,7 +72,7 @@ export default function CustomerFavouritesPage() {
                     <p className="text-xs uppercase tracking-[.2em] text-white/35">{item.restaurant?.name} · {item.category?.name || "Menu"}</p>
                     <h3 className="mt-3 font-display text-3xl">{item.name}</h3>
                     <p className="mt-3 text-white/55">৳{Number(item.price || 0).toLocaleString("en-BD")}</p>
-                    <Link to={dishPath} className="mt-5 inline-flex text-sm text-white/75 hover:text-white">Open dish →</Link>
+                    <Link to={dishPath} className="mt-5 inline-flex items-center gap-2 text-sm text-white/75 hover:text-white">Open dish <LottieFlowIcon name="arrow" /></Link>
                   </div>
                 </article>
               );

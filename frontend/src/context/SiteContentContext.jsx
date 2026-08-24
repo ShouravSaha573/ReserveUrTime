@@ -28,14 +28,14 @@ export const DEFAULT_SITE_CONTENT = {
     registerCtaLabel: "Create customer account",
     registerCtaPath: "/customer/register",
     searchEnabled: true,
-    searchPlaceholder: "Search a restaurant or cuisine...",
+    searchPlaceholder: "Search restaurants, food, categories or locations...",
     mediaUrl: ""
   },
   restaurantsSection: {
     enabled: true,
     eyebrow: "Selected destinations",
     title: "Our restaurants",
-    viewAllLabel: "View all →",
+    viewAllLabel: "View all",
     viewAllPath: "/restaurants",
     featuredLimit: 3
   },
