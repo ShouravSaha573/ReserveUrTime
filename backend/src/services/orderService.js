@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { reservationHoldDeadline } from "../config/reservationHold.js";
 import crypto from "crypto";
 import { Cart } from "../models/Cart.js";
 import { DiningTable } from "../models/DiningTable.js";
@@ -8,18 +9,10 @@ import { Reservation } from "../models/Reservation.js";
 import { Restaurant } from "../models/Restaurant.js";
 import { User } from "../models/User.js";
 import { createNotification, notifyRestaurantAdmins } from "./notificationService.js";
-import { availabilityForDate, validateSelectedTables } from "./tableAvailabilityService.js";
+import { availabilityForDate, releaseExpiredReservationLocks, validateSelectedTables } from "./tableAvailabilityService.js";
 
 const ORDER_STATUSES = ["placed", "confirmed", "preparing", "ready", "completed", "cancelled"];
 const RESERVATION_TIME_SLOTS = ["18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30"];
-const ADMIN_TRANSITIONS = {
-  placed: ["confirmed", "cancelled"],
-  confirmed: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-  ready: ["completed"],
-  completed: [],
-  cancelled: []
-};
 
 function money(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -520,7 +513,7 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
         timeSlot: dining.timeSlot,
         guestCount: dining.guestCount,
         status: "pending",
-        heldUntil: new Date(Date.now() + 15 * 60 * 1000),
+        heldUntil: reservationHoldDeadline(),
         paymentStatus: "unpaid",
         reservationKey: `${tables[0]._id}:${dining.reservationDate}:${dining.timeSlot}`,
         reservationKeys: tables.map((table) => `${table._id}:${dining.reservationDate}:${dining.timeSlot}`),
@@ -554,6 +547,7 @@ export async function placeCustomerOrder(userId, { notes, checkoutKey, reservati
 }
 
 export async function listCustomerOrders(userId) {
+  await releaseExpiredReservationLocks();
   const orders = await Order.find({ userId })
     .populate("restaurantId", "name slug location coverImageUrl")
     .sort({ createdAt: -1 })
@@ -609,15 +603,21 @@ export async function cancelCustomerOrder(userId, orderId) {
   return getCustomerOrderById(userId, orderId);
 }
 
-export async function listRestaurantOrders(restaurantId, { status = "" } = {}) {
+export async function listRestaurantOrders(restaurantId, { filter = "" } = {}) {
+  await releaseExpiredReservationLocks({ restaurantId });
   const query = { restaurantId };
-  if (status) {
-    if (!ORDER_STATUSES.includes(status)) {
-      const error = new Error("Invalid order status filter.");
-      error.status = 400;
-      throw error;
-    }
-    query.status = status;
+  if (filter === "awaiting_payment") {
+    query.status = mongoose.trusted({ $ne: "cancelled" });
+    query.paymentStatus = mongoose.trusted({ $in: ["unpaid", "pending", "failed"] });
+  } else if (filter === "paid") {
+    query.status = mongoose.trusted({ $ne: "cancelled" });
+    query.paymentStatus = "paid";
+  } else if (filter === "cancelled") {
+    query.status = "cancelled";
+  } else if (filter) {
+    const error = new Error("Invalid order filter.");
+    error.status = 400;
+    throw error;
   }
 
   const orders = await Order.find(query)
@@ -636,8 +636,8 @@ export async function updateRestaurantOrderStatus({
 }) {
   objectId(orderId, "order id");
   const status = String(nextStatus || "").trim().toLowerCase();
-  if (!ORDER_STATUSES.includes(status)) {
-    const error = new Error("Invalid order status.");
+  if (status !== "cancelled") {
+    const error = new Error("Restaurant Admins can only cancel an unpaid order. Paid orders are booked automatically.");
     error.status = 400;
     throw error;
   }
@@ -652,24 +652,13 @@ export async function updateRestaurantOrderStatus({
     throw error;
   }
 
-  if (!ADMIN_TRANSITIONS[current.status]?.includes(status)) {
+  if (current.status === "cancelled") {
     const error = new Error(`Order cannot move from ${current.status} to ${status}.`);
     error.status = 409;
     throw error;
   }
 
-  if (status !== "cancelled" && current.paymentStatus !== "paid") {
-    const error = new Error(
-      "Restaurant fulfilment can advance only after SSLCOMMERZ payment is verified."
-    );
-    error.status = 409;
-    throw error;
-  }
-
-  if (
-    status === "cancelled" &&
-    !["unpaid", "failed"].includes(current.paymentStatus)
-  ) {
+  if (!["unpaid", "failed"].includes(current.paymentStatus)) {
     const error = new Error(
       current.paymentStatus === "paid"
         ? "Paid-order cancellation requires a verified refund workflow."
@@ -684,11 +673,7 @@ export async function updateRestaurantOrderStatus({
     restaurantId,
     status: current.status
   };
-  if (status === "cancelled") {
-    filter.paymentStatus = mongoose.trusted({ $in: ["unpaid", "failed"] });
-  } else {
-    filter.paymentStatus = "paid";
-  }
+  filter.paymentStatus = mongoose.trusted({ $in: ["unpaid", "failed"] });
 
   const order = await Order.findOneAndUpdate(
     filter,
@@ -713,6 +698,18 @@ export async function updateRestaurantOrderStatus({
     error.status = 409;
     throw error;
   }
+
+  await Reservation.updateOne(
+    {
+      orderId: order._id,
+      restaurantId,
+      status: mongoose.trusted({ $in: ["pending", "confirmed"] })
+    },
+    {
+      $set: { status: "cancelled", paymentStatus: "failed" },
+      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
+    }
+  );
 
   await createNotification({
     recipientUserId: order.userId,

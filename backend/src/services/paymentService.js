@@ -13,6 +13,7 @@ import {
   isSslcommerzEnabled,
   isSslcommerzLive
 } from "../config/paymentConfig.js";
+import { reservationHoldDeadline } from "../config/reservationHold.js";
 
 const VALID_GATEWAY_STATUSES = new Set(["VALID", "VALIDATED"]);
 const PAYMENTABLE_ORDER_STATUSES = new Set(["placed", "confirmed", "preparing", "ready"]);
@@ -29,16 +30,6 @@ function appError(message, status = 400) {
   const error = new Error(message);
   error.status = status;
   return error;
-}
-
-async function releaseReservationAfterGatewayInitFailure(orderId) {
-  await Reservation.updateOne(
-    { orderId, status: "pending", paymentStatus: mongoose.trusted({ $ne: "paid" }) },
-    {
-      $set: { status: "cancelled", paymentStatus: "failed" },
-      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
-    }
-  );
 }
 
 function money(value) {
@@ -606,7 +597,7 @@ async function ensureRetryableReservationHold(order, userId) {
         $set: {
           status: "pending",
           paymentStatus: "pending",
-          heldUntil: new Date(Date.now() + 15 * 60 * 1000),
+          heldUntil: reservationHoldDeadline(),
           reservationKey: reservationKeys[0],
           reservationKeys,
           customerSlotKey: `${userId}:${reservation.restaurantId}:${reservation.reservationDate}:${reservation.timeSlot}`
@@ -787,8 +778,6 @@ export async function initiateCustomerSslcommerzPayment(userId, orderId, payment
         { _id: order._id, activePaymentAttemptId: attempt._id, paymentStatus: mongoose.trusted({ $ne: "paid" }) },
         { $set: { activePaymentAttemptId: null, paymentStatus: "failed" } }
       );
-      await releaseReservationAfterGatewayInitFailure(order._id);
-
       throw appError(reason, 502);
     }
 
@@ -824,8 +813,6 @@ export async function initiateCustomerSslcommerzPayment(userId, orderId, payment
         { _id: order._id, activePaymentAttemptId: attempt._id, paymentStatus: mongoose.trusted({ $ne: "paid" }) },
         { $set: { activePaymentAttemptId: null, paymentStatus: "failed" } }
       );
-      await releaseReservationAfterGatewayInitFailure(order._id);
-
     }
     throw error;
   }

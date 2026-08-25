@@ -7,7 +7,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const listOwnOrders = asyncHandler(async (req, res) => {
   const orders = await listRestaurantOrders(req.managedRestaurantId, {
-    status: String(req.query.status || "").trim().toLowerCase()
+    filter: String(req.query.filter || "").trim().toLowerCase()
   });
   res.json({ orders });
 });

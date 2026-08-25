@@ -9,7 +9,6 @@ export default function ReservationConversation({ order, unreadCount = 0, onRead
   const [state, setState] = useState({ loading: false, sending: false, error: "" });
   const expiresAt = new Date(`${order.reservationSnapshot.reservationDate}T${order.reservationSnapshot.timeSlot}:00+06:00`);
   const locallyOpen = expiresAt.getTime() > Date.now() && order.status !== "cancelled";
-  if (!locallyOpen) return null;
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: "" }));
@@ -39,6 +38,12 @@ export default function ReservationConversation({ order, unreadCount = 0, onRead
     const timer = window.setInterval(refresh, 10000);
     return () => { document.removeEventListener("visibilitychange", onVisible); window.clearInterval(timer); };
   }, [open, order._id]);
+
+  // Keep this return below every hook. The same keyed component can change
+  // from an active to a cancelled Order in place; returning before useEffect
+  // on that render would violate React's hook ordering and blank the page.
+  if (!locallyOpen) return null;
+
   async function toggle() {
     const next = !open;
     setOpen(next);

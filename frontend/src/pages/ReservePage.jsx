@@ -163,9 +163,14 @@ export default function ReservePage() {
 
     try {
       // Critical POST has no automatic retry.
-      const paymentKey = globalThis.crypto?.randomUUID
-        ? `reservation:${globalThis.crypto.randomUUID()}`
-        : `reservation:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+      const paymentKeyStorage = `reservation-payment-key:${restaurantId}:${form.reservationDate}:${form.timeSlot}:${user?.id || form.email.toLowerCase()}`;
+      let paymentKey = sessionStorage.getItem(paymentKeyStorage);
+      if (!paymentKey) {
+        paymentKey = globalThis.crypto?.randomUUID
+          ? `reservation:${globalThis.crypto.randomUUID()}`
+          : `reservation:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+        sessionStorage.setItem(paymentKeyStorage, paymentKey);
+      }
       const data = await apiFetch("/reservations/checkout", {
         method: "POST",
         body: {
@@ -178,9 +183,14 @@ export default function ReservePage() {
       });
 
       if (!data.gatewayUrl) throw new Error("SSLCOMMERZ did not provide a payment page.");
-      sessionStorage.removeItem(draftKey);
       window.location.assign(data.gatewayUrl);
     } catch (error) {
+      if (error.status === 409 && /hold has expired|already complete/i.test(error.message)) {
+        for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+          const key = sessionStorage.key(index);
+          if (key?.startsWith(`reservation-payment-key:${restaurantId}:`)) sessionStorage.removeItem(key);
+        }
+      }
       setState((current) => ({
         ...current,
         error: error.message
@@ -350,7 +360,7 @@ export default function ReservePage() {
           </button>
 
           <p className="mt-4 text-xs leading-5 text-white/32">
-            Your table is held for 15 minutes and confirmed only after SSLCOMMERZ verifies payment. Card or mobile-banking credentials are entered only on the gateway's hosted sandbox page.
+            Your table is held for 3 hours while payment is pending. If an SSLCommerz card or bKash payment fails, you can try again before the hold expires. The reservation is cancelled and the table is released after 3 hours if payment is not completed.
           </p>
 
           {result && (

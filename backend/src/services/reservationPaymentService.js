@@ -5,6 +5,8 @@ import { ReservationPaymentAttempt } from "../models/ReservationPaymentAttempt.j
 import { DiningTable } from "../models/DiningTable.js";
 import { Restaurant } from "../models/Restaurant.js";
 import { getPaymentCallbackBaseUrl, getPaymentClientReturnUrl, getSslcommerzCredentials, getSslcommerzUrls, isSslcommerzEnabled } from "../config/paymentConfig.js";
+import { reservationHoldDeadline } from "../config/reservationHold.js";
+import { releaseExpiredReservationLocks } from "./tableAvailabilityService.js";
 
 const good = new Set(["VALID", "VALIDATED"]);
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -14,18 +16,7 @@ const slots = new Set(["18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21
 const bookingReference = () => `RSV-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 
 export async function releaseExpiredReservationHolds({ session } = {}) {
-  const query = Reservation.updateMany(
-    {
-      status: "pending",
-      heldUntil: mongoose.trusted({ $lte: new Date() })
-    },
-    {
-      $set: { status: "cancelled", paymentStatus: "failed" },
-      $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 }
-    }
-  );
-  if (session) query.session(session);
-  return query;
+  return releaseExpiredReservationLocks({ session });
 }
 
 async function validateRequestData(body) {
@@ -85,28 +76,64 @@ export async function createReservationCheckout(body, user) {
 
   const amount = money(process.env.RESERVATION_DEPOSIT_BDT || 100);
   if (amount < 10 || amount > 500000) throw fail("Reservation deposit must be between BDT 10 and 500,000.", 503);
-  const session = await mongoose.startSession();
   let reservation;
-  try {
-    await session.withTransaction(async () => {
-      await releaseExpiredReservationHolds({ session });
-      const occupied = await Reservation.find({
-        tableId: mongoose.trusted({ $in: validated.tables.map((t) => t._id) }), reservationDate: body.reservationDate, timeSlot: body.timeSlot,
-        $or: [{ status: "confirmed" }, { status: "pending", heldUntil: mongoose.trusted({ $gt: new Date() }) }]
-      }).session(session).select("tableId").lean();
-      const used = new Set(occupied.map((r) => String(r.tableId)));
-      const table = validated.tables.find((t) => !used.has(String(t._id)));
-      if (!table) throw fail("That time slot just became unavailable.", 409);
-      reservation = await Reservation.create([{
-        bookingReference: bookingReference(), userId: user?._id || null, restaurantId: validated.restaurant._id, tableId: table._id,
-        reservationDate: body.reservationDate, timeSlot: body.timeSlot, guestCount: validated.guests, status: "pending",
-        heldUntil: new Date(Date.now() + 15 * 60 * 1000), reservationKey: `${table._id}:${body.reservationDate}:${body.timeSlot}`,
-        guest, paymentStatus: "pending", depositAmount: amount
-      }], { session }).then((rows) => rows[0]);
-    });
-  } finally { await session.endSession(); }
+  let attempt;
+  const retryReservation = existing && await Reservation.findOne({
+    _id: existing.reservationId,
+    status: "pending",
+    heldUntil: mongoose.trusted({ $gt: new Date() }),
+    paymentStatus: mongoose.trusted({ $ne: "paid" })
+  });
 
-  const attempt = await ReservationPaymentAttempt.create({ reservationId: reservation._id, transactionId: `RSV${Date.now().toString(36)}${crypto.randomBytes(6).toString("hex")}`.slice(0, 30), paymentKey, amount, status: "creating" });
+  if (existing && !retryReservation) {
+    throw fail(
+      existing.status === "verified_paid"
+        ? "This reservation payment is already complete."
+        : "The 3-hour table hold has expired. Check availability and reserve again.",
+      409
+    );
+  }
+
+  if (retryReservation) {
+    reservation = retryReservation;
+    attempt = await ReservationPaymentAttempt.findOneAndUpdate(
+      { _id: existing._id, status: mongoose.trusted({ $ne: "verified_paid" }) },
+      {
+        $set: {
+          transactionId: `RSV${Date.now().toString(36)}${crypto.randomBytes(6).toString("hex")}`.slice(0, 30),
+          status: "creating",
+          gatewayStatus: "",
+          gatewayPageUrl: "",
+          validationId: "",
+          verifiedAt: null,
+          failureReason: ""
+        }
+      },
+      { new: true }
+    );
+    await Reservation.updateOne({ _id: reservation._id }, { $set: { paymentStatus: "pending" } });
+  } else {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await releaseExpiredReservationHolds({ session });
+        const occupied = await Reservation.find({
+          tableId: mongoose.trusted({ $in: validated.tables.map((t) => t._id) }), reservationDate: body.reservationDate, timeSlot: body.timeSlot,
+          $or: [{ status: "confirmed" }, { status: "pending", heldUntil: mongoose.trusted({ $gt: new Date() }) }]
+        }).session(session).select("tableId").lean();
+        const used = new Set(occupied.map((r) => String(r.tableId)));
+        const table = validated.tables.find((t) => !used.has(String(t._id)));
+        if (!table) throw fail("That time slot just became unavailable.", 409);
+        reservation = await Reservation.create([{
+          bookingReference: bookingReference(), userId: user?._id || null, restaurantId: validated.restaurant._id, tableId: table._id,
+          reservationDate: body.reservationDate, timeSlot: body.timeSlot, guestCount: validated.guests, status: "pending",
+          heldUntil: reservationHoldDeadline(), reservationKey: `${table._id}:${body.reservationDate}:${body.timeSlot}`,
+          guest, paymentStatus: "pending", depositAmount: amount
+        }], { session }).then((rows) => rows[0]);
+      });
+    } finally { await session.endSession(); }
+    attempt = await ReservationPaymentAttempt.create({ reservationId: reservation._id, transactionId: `RSV${Date.now().toString(36)}${crypto.randomBytes(6).toString("hex")}`.slice(0, 30), paymentKey, amount, status: "creating" });
+  }
   const { storeId, storePassword } = getSslcommerzCredentials();
   const base = getPaymentCallbackBaseUrl();
   const payload = new URLSearchParams({
@@ -126,7 +153,10 @@ export async function createReservationCheckout(body, user) {
   } catch (error) {
     await Promise.all([
       ReservationPaymentAttempt.updateOne({ _id: attempt._id }, { $set: { status: "failed", failureReason: clean(error.message, 240) } }),
-      Reservation.updateOne({ _id: reservation._id }, { $set: { status: "cancelled", paymentStatus: "failed" }, $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 } })
+      Reservation.updateOne(
+        { _id: reservation._id, status: "pending", heldUntil: mongoose.trusted({ $gt: new Date() }) },
+        { $set: { paymentStatus: "failed" } }
+      )
     ]);
     throw error;
   }
@@ -136,7 +166,10 @@ export async function processReservationPayment(payload) {
   const transactionId = clean(payload?.tran_id, 30);
   const attempt = await ReservationPaymentAttempt.findOne({ transactionId }).lean();
   if (!attempt) return null;
-  if (attempt.status === "verified_paid") return { outcome: "verified_paid", attempt, reference: (await Reservation.findById(attempt.reservationId).select("bookingReference").lean())?.bookingReference };
+  if (attempt.status === "verified_paid") {
+    const paidReservation = await Reservation.findById(attempt.reservationId).select("bookingReference restaurantId").lean();
+    return { outcome: "verified_paid", attempt, reference: paidReservation?.bookingReference, restaurantId: paidReservation?.restaurantId };
+  }
   let record;
   const { storeId, storePassword } = getSslcommerzCredentials();
   if (clean(payload?.val_id, 80)) {
@@ -156,19 +189,25 @@ export async function processReservationPayment(payload) {
       ReservationPaymentAttempt.updateOne({ _id: attempt._id }, { $set: { status: "verified_paid", gatewayStatus: status, validationId: clean(record.val_id,80), verifiedAt: new Date() } }),
       Reservation.updateOne({ _id: reservation._id }, { $set: { status: "confirmed", paymentStatus: "paid", paymentTransactionId: transactionId, paidAt: new Date(), heldUntil: null } })
     ]);
-    return { outcome: "verified_paid", attempt, reference: reservation.bookingReference };
+    return { outcome: "verified_paid", attempt, reference: reservation.bookingReference, restaurantId: reservation.restaurantId };
   }
   const outcome = Number(record?.risk_level || 0) === 1 ? "risk_hold" : "failed";
   await ReservationPaymentAttempt.updateOne({ _id: attempt._id }, { $set: { status: outcome, gatewayStatus: status || "FAILED" } });
-  if (outcome === "failed") await Reservation.updateOne({ _id: reservation._id }, { $set: { status: "cancelled", paymentStatus: "failed" }, $unset: { reservationKey: 1, reservationKeys: 1, customerSlotKey: 1 } });
-  return { outcome, attempt, reference: reservation.bookingReference };
+  if (outcome === "failed") {
+    await Reservation.updateOne(
+      { _id: reservation._id, status: "pending", heldUntil: mongoose.trusted({ $gt: new Date() }) },
+      { $set: { paymentStatus: "failed" } }
+    );
+  }
+  return { outcome, attempt, reference: reservation.bookingReference, restaurantId: reservation.restaurantId };
 }
 
-export function reservationPaymentRedirect(outcome, reference) {
+export function reservationPaymentRedirect(outcome, reference, restaurantId) {
   const url = new URL(getPaymentClientReturnUrl());
   url.pathname = "/reservation-result";
   url.search = "";
   url.searchParams.set("payment", outcome === "verified_paid" ? "success" : outcome === "risk_hold" ? "review" : "failed");
   url.searchParams.set("reference", clean(reference, 50));
+  if (restaurantId) url.searchParams.set("restaurantId", String(restaurantId));
   return url.toString();
 }

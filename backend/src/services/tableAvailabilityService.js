@@ -43,18 +43,18 @@ function activeReservationQuery(tableIds, date, timeSlot) {
 }
 
 export async function releaseExpiredReservationLocks({ restaurantId = null, session = null } = {}) {
-  const failedOrderQuery = Order.find({
-    paymentStatus: "failed",
-    ...(restaurantId ? { restaurantId } : {})
-  }).select("_id");
-  if (session) failedOrderQuery.session(session);
-  const failedOrderIds = (await failedOrderQuery.lean()).map((order) => order._id);
-  const releasable = [{ heldUntil: mongoose.trusted({ $lte: new Date() }) }];
-  if (failedOrderIds.length) releasable.push({ orderId: mongoose.trusted({ $in: failedOrderIds }) });
-  const filter = {
+  const expiredQuery = Reservation.find({
     status: "pending",
     ...(restaurantId ? { restaurantId } : {}),
-    $or: releasable
+    heldUntil: mongoose.trusted({ $lte: new Date() })
+  }).select("_id orderId");
+  if (session) expiredQuery.session(session);
+  const expired = await expiredQuery.lean();
+  if (!expired.length) return { matchedCount: 0, modifiedCount: 0 };
+
+  const filter = {
+    _id: mongoose.trusted({ $in: expired.map((reservation) => reservation._id) }),
+    status: "pending"
   };
   const query = Reservation.updateMany(
     filter,
@@ -64,7 +64,32 @@ export async function releaseExpiredReservationLocks({ restaurantId = null, sess
     }
   );
   if (session) query.session(session);
-  return query;
+  const result = await query;
+
+  const orderIds = expired.map((reservation) => reservation.orderId).filter(Boolean);
+  if (orderIds.length) {
+    const orderQuery = Order.updateMany(
+      {
+        _id: mongoose.trusted({ $in: orderIds }),
+        paymentStatus: mongoose.trusted({ $ne: "paid" }),
+        status: mongoose.trusted({ $ne: "cancelled" })
+      },
+      {
+        $set: { status: "cancelled", activePaymentAttemptId: null },
+        $push: {
+          statusHistory: {
+            status: "cancelled",
+            changedAt: new Date(),
+            changedBy: null,
+            changedByRole: "system"
+          }
+        }
+      }
+    );
+    if (session) orderQuery.session(session);
+    await orderQuery;
+  }
+  return result;
 }
 
 export async function availabilityForDate({ restaurantId, date, guestCount, session = null }) {

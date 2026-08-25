@@ -58,8 +58,11 @@ for (const route of ["/dashboard/cart", "/dashboard/orders", "/restaurant-admin/
 assert.ok(cartContext.includes("replaceExistingRestaurant") && cartContext.includes("itemCount"), "Cart context must support one-Restaurant replacement and badge counts.");
 assert.ok(cartPage.includes("checkoutKey") && cartPage.includes("SSLCOMMERZ"), "Cart checkout must preserve the Phase 9 idempotent Order key while Phase 10 adds payment.");
 assert.ok(ordersPage.includes("Cancel order") && ordersPage.includes("paymentStatus"), "Customer order history must expose safe pre-confirmation cancellation and payment state.");
-for (const token of ["Start preparing", "Mark ready", "Complete", "Payment: {order.paymentStatus}"]) {
-  assert.ok(adminOrdersPage.includes(token), `Restaurant Admin order workflow missing: ${token}`);
+for (const token of ["Awaiting payment", "Paid / booked", "Cancelled", "Cancel unpaid order", "Payment: {order.paymentStatus}"]) {
+  assert.ok(adminOrdersPage.includes(token), `Restaurant Admin payment-driven order view missing: ${token}`);
+}
+for (const removedAction of ["Start preparing", "Mark ready", "Complete", "Confirm paid order"]) {
+  assert.ok(!adminOrdersPage.includes(removedAction), `Removed fulfilment action is still exposed: ${removedAction}`);
 }
 for (const source of [menuItem, threeDMenu]) {
   assert.ok(source.includes("AddToCartButton"), "Both DOM and 3D menus must support adding dishes to cart.");

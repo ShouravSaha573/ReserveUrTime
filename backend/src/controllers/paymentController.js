@@ -52,7 +52,7 @@ async function browserCallback(req, res, source) {
   try {
     const reservationResult = await processReservationPayment(req.body);
     if (reservationResult) {
-      return res.redirect(303, reservationPaymentRedirect(reservationResult.outcome, reservationResult.reference));
+      return res.redirect(303, reservationPaymentRedirect(reservationResult.outcome, reservationResult.reference, reservationResult.restaurantId));
     }
     const result = await processSslcommerzNotification(req.body, { source });
     outcome = result.outcome;

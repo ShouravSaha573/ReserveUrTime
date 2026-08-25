@@ -20,9 +20,13 @@ export function attachAdminMessageWebSocket(server) {
   const allowedOrigins = new Set(getAllowedClientOrigins());
 
   server.on("upgrade", async (request, socket, head) => {
+    socket.on("error", () => { /* Peer disconnects during authorization are expected. */ });
     try {
       const url = new URL(request.url, "http://localhost");
-      if (url.pathname !== "/ws/admin-messages") return;
+      if (url.pathname !== "/ws/admin-messages") {
+        socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+        return;
+      }
       if (request.headers.origin && !allowedOrigins.has(request.headers.origin)) throw new Error("Origin rejected");
       const token = decodeURIComponent(cookieValue(request.headers.cookie, COOKIE_NAME) || "");
       const payload = jwt.verify(token, process.env.JWT_SECRET);
@@ -30,8 +34,15 @@ export function attachAdminMessageWebSocket(server) {
       if (!user?.isActive || !["restaurant_admin", "platform_admin"].includes(user.role) || Number(payload.ver) !== Number(user.authVersion || 0)) throw new Error("Unauthorized");
       wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request, user));
     } catch {
-      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-      socket.destroy();
+      // Finish the HTTP upgrade request cleanly. Destroying the socket
+      // immediately after write() can discard the buffered 401 response and
+      // makes Vite's WebSocket proxy report a misleading ECONNABORTED error.
+      socket.end(
+        "HTTP/1.1 401 Unauthorized\r\n" +
+        "Connection: close\r\n" +
+        "Content-Length: 0\r\n" +
+        "\r\n"
+      );
     }
   });
 
@@ -39,12 +50,14 @@ export function attachAdminMessageWebSocket(server) {
     const client = { socket, user, alive: true };
     clients.add(client);
     socket.on("pong", () => { client.alive = true; });
+    socket.on("error", () => clients.delete(client));
     socket.on("close", () => clients.delete(client));
     socket.send(JSON.stringify({ type: "connected" }));
   });
 
   const heartbeat = setInterval(() => {
     for (const client of clients) {
+      if (client.socket.readyState !== WebSocket.OPEN) { clients.delete(client); continue; }
       if (!client.alive) { client.socket.terminate(); clients.delete(client); continue; }
       client.alive = false;
       client.socket.ping();

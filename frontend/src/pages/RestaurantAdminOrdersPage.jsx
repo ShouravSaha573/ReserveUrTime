@@ -3,18 +3,17 @@ import RestaurantAdminSectionNav from "../components/RestaurantAdminSectionNav";
 import PageMessage from "../components/PageMessage";
 import { apiFetch } from "../lib/api";
 
-const filters = ["", "placed", "confirmed", "preparing", "ready", "completed", "cancelled"];
+const filters = [
+  ["", "All"],
+  ["awaiting_payment", "Awaiting payment"],
+  ["paid", "Paid / booked"],
+  ["cancelled", "Cancelled"]
+];
 
 function actionsFor(order) {
-  if (order.status === "placed") {
-    if (order.paymentStatus === "paid") return [["Confirm paid order", "confirmed"]];
-    if (["unpaid", "failed"].includes(order.paymentStatus)) return [["Cancel unpaid order", "cancelled"]];
-    return [];
+  if (order.status !== "cancelled" && ["unpaid", "failed"].includes(order.paymentStatus)) {
+    return [["Cancel unpaid order", "cancelled"]];
   }
-  if (order.paymentStatus !== "paid") return [];
-  if (order.status === "confirmed") return [["Start preparing", "preparing"]];
-  if (order.status === "preparing") return [["Mark ready", "ready"]];
-  if (order.status === "ready") return [["Complete", "completed"]];
   return [];
 }
 
@@ -26,7 +25,7 @@ export default function RestaurantAdminOrdersPage() {
   async function load(nextStatus = status) {
     setState((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const suffix = nextStatus ? `?status=${encodeURIComponent(nextStatus)}` : "";
+      const suffix = nextStatus ? `?filter=${encodeURIComponent(nextStatus)}` : "";
       const payload = await apiFetch(`/restaurant-admin/orders${suffix}`, { retryGet: false });
       setOrders(payload.orders || []);
       setState({ loading: false, error: "", busyId: "" });
@@ -66,7 +65,7 @@ export default function RestaurantAdminOrdersPage() {
         <div>
           <h1 className="font-display text-5xl md:text-7xl">Orders</h1>
           <p className="mt-4 max-w-2xl leading-7 text-white/50">
-            Only Orders belonging to your assigned Restaurant are available here. Payment status is gateway-controlled and read-only: Restaurant fulfilment can advance only after SSLCOMMERZ verification marks the Order paid.
+            Payment controls the booking automatically. Unpaid orders remain on hold for up to 3 hours and may be cancelled; verified payments are booked immediately with no fulfilment steps required.
           </p>
         </div>
         <div className="text-right">
@@ -78,14 +77,14 @@ export default function RestaurantAdminOrdersPage() {
       <RestaurantAdminSectionNav />
 
       <div className="mt-8 flex flex-wrap gap-2">
-        {filters.map((value) => (
+        {filters.map(([value, label]) => (
           <button
             key={value || "all"}
             type="button"
             onClick={() => setStatus(value)}
             className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[.14em] transition ${status === value ? "border-white bg-white text-black" : "border-white/10 text-white/45 hover:border-white/25 hover:text-white"}`}
           >
-            {value || "All"}
+            {label}
           </button>
         ))}
       </div>
@@ -112,7 +111,7 @@ export default function RestaurantAdminOrdersPage() {
                   {order.customerSnapshot?.phone && <p className="mt-2 text-sm text-white/40">{order.customerSnapshot.phone}</p>}
                 </div>
                 <div className="text-right">
-                  <span className={`order-status is-${order.status}`}>{order.status}</span>
+                  <span className={`order-status is-${order.status}`}>{order.status === "cancelled" ? "cancelled" : order.paymentStatus === "paid" ? "booked" : "awaiting payment"}</span>
                   <p className="mt-3 font-display text-3xl">৳{Number(order.total).toLocaleString("en-BD")}</p>
                   <p className={`mt-1 text-xs uppercase tracking-[.15em] ${order.paymentStatus === "paid" ? "text-emerald-100/65" : "text-white/30"}`}>Payment: {order.paymentStatus}</p>
                   {order.paidAt && <p className="mt-1 text-xs text-emerald-100/45">Verified {new Date(order.paidAt).toLocaleString()}</p>}
@@ -132,8 +131,17 @@ export default function RestaurantAdminOrdersPage() {
 
               {order.paymentStatus === "pending" && (
                 <p className="mt-5 rounded-xl border border-amber-200/10 bg-amber-100/[.035] p-4 text-xs leading-5 text-amber-50/70">
-                  Payment is still awaiting gateway verification. Do not prepare or cancel this Order while a payment may still complete.
+                  Payment is awaiting gateway verification. The reservation and selected table(s) remain held during the 3-hour payment window.
                 </p>
+              )}
+
+              {order.reservationSnapshot?.bookingReference && (
+                <div className="mt-5 grid gap-3 rounded-2xl border border-emerald-200/10 bg-emerald-100/[.035] p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                  <div><span className="block text-xs uppercase tracking-[.15em] text-white/30">Reservation</span><strong className="mt-1 block text-emerald-100">{order.reservationSnapshot.bookingReference}</strong></div>
+                  <div><span className="block text-xs uppercase tracking-[.15em] text-white/30">Date and time</span><strong className="mt-1 block">{order.reservationSnapshot.reservationDate} · {order.reservationSnapshot.timeSlot}</strong></div>
+                  <div><span className="block text-xs uppercase tracking-[.15em] text-white/30">Guests</span><strong className="mt-1 block">{order.reservationSnapshot.guestCount}</strong></div>
+                  <div><span className="block text-xs uppercase tracking-[.15em] text-white/30">Table(s)</span><strong className="mt-1 block">{order.reservationSnapshot.tableNumbers?.join(", ") || order.reservationSnapshot.tableNumber}</strong></div>
+                </div>
               )}
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-4">

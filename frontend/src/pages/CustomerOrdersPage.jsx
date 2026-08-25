@@ -72,7 +72,7 @@ export default function CustomerOrdersPage() {
   );
 
   async function cancel(orderId) {
-    if (!window.confirm("Cancel this unpaid Order before the Restaurant confirms it?")) return;
+    if (!window.confirm("Cancel this unpaid order and release its reserved table(s)?")) return;
     setState((current) => ({ ...current, busyId: orderId }));
     try {
       const payload = await apiFetch(`/customer/orders/${orderId}/cancel`, {

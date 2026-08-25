@@ -124,12 +124,13 @@ export const createReservation = asyncHandler(async (req, res) => {
 export const checkoutReservation = asyncHandler(async (req, res) => {
   const result = await createReservationCheckout(req.body, req.user);
   res.status(result.reused ? 200 : 201).json({
-    message: result.reused ? "Existing payment session reused." : "Reservation held for 15 minutes. Complete payment to confirm it.",
+    message: result.reused ? "Existing payment session reused." : "Reservation held for 3 hours. Complete payment to confirm it.",
     ...result
   });
 });
 
 export const myReservations = asyncHandler(async (req, res) => {
+  await releaseExpiredReservationHolds();
   const reservations = await Reservation.find({ userId: req.user._id })
     .populate("restaurantId", "name slug location")
     .populate("tableId", "tableNumber capacity area")
