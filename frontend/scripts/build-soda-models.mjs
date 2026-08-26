@@ -64,5 +64,5 @@ function buildModel(outputName, texturePath) {
   fs.writeFileSync(path.join(publicDirectory, "hero-assets", "soda", outputName), output);
 }
 
-buildModel("mojo-green.glb", path.join(publicDirectory, "hero-assets", "mojo-green-bangladesh-v3.png"));
-buildModel("mojo-blue.glb", path.join(publicDirectory, "hero-assets", "mojo-blue-bangladesh-v3.png"));
+buildModel("mojo-green-v2.glb", path.join(publicDirectory, "hero-assets", "mojo-green-bangladesh-v3.png"));
+buildModel("mojo-blue-v2.glb", path.join(publicDirectory, "hero-assets", "mojo-blue-bangladesh-v3.png"));
