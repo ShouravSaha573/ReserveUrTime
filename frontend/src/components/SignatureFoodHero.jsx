@@ -237,7 +237,6 @@ function SodaHero() {
   const [berryFlavor, setBerryFlavor] = useState("classic");
   const [ready, setReady] = useState(false);
   const [modelViewerReady, setModelViewerReady] = useState(() => Boolean(customElements.get("model-viewer")));
-  const [decorCount, setDecorCount] = useState(0);
   const textures = useRef({ green: null, blue: null });
   const texturePromises = useRef({ green: null, blue: null });
   const mouse = useRef({ x: 0, y: 0 });
@@ -277,29 +276,6 @@ function SodaHero() {
       observer.disconnect();
     };
 }, []);
-
-  useEffect(() => {
-    if (!modelViewerReady || !ready) return undefined;
-    let cancelled = false;
-    let timer = 0;
-    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 350));
-    const cancel = window.cancelIdleCallback || window.clearTimeout;
-    const idleTask = schedule(() => {
-      let revealed = 0;
-      const revealNext = () => {
-        if (cancelled) return;
-        revealed = Math.min(revealed + 2, 13);
-        setDecorCount(revealed);
-        if (revealed < 13) timer = window.setTimeout(revealNext, 140);
-      };
-      revealNext();
-    }, { timeout: 1200 });
-    return () => {
-      cancelled = true;
-      cancel(idleTask);
-      window.clearTimeout(timer);
-    };
-  }, [modelViewerReady, ready]);
 
   useEffect(() => {
     const model = modelRef.current;
@@ -527,11 +503,11 @@ function SodaHero() {
         <div className="premium-soda-award"><b>DESIGN FEATURE</b><small>INTERACTIVE BEVERAGE HERO</small></div>
       </div>
 
-      {decorCount > 0 && <div className="premium-soda-object-layer premium-soda-leaves" aria-hidden="true">
-        {[0, 1, 2, 3].slice(0, Math.min(decorCount, 4)).map((index) => <model-viewer key={index} loading="lazy" src={SODA.leaves} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-leaf leaf-${index + 1}`} />)}
+      {modelViewerReady && <div className="premium-soda-object-layer premium-soda-leaves" aria-hidden="true">
+        {[0, 1, 2, 3].map((index) => <model-viewer key={index} loading="lazy" src={SODA.leaves} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-leaf leaf-${index + 1}`} />)}
       </div>}
-      {decorCount > 4 && <div className="premium-soda-object-layer premium-soda-berries-bg" aria-hidden="true">
-        {[6, 7, 8].slice(0, Math.max(0, decorCount - 4)).map((index) => <model-viewer key={index} loading="lazy" ref={(node) => { berryRefs.current[index] = node; }} src={berryFlavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
+      {modelViewerReady && <div className="premium-soda-object-layer premium-soda-berries-bg" aria-hidden="true">
+        {[6, 7, 8].map((index) => <model-viewer key={index} loading="lazy" ref={(node) => { berryRefs.current[index] = node; }} src={berryFlavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
       </div>}
 
       <div className="premium-soda-center">
@@ -539,8 +515,8 @@ function SodaHero() {
         {modelViewerReady && <model-viewer ref={modelRef} loading="eager" reveal="manual" poster={flavor === "blue" ? SODA.blueCard : SODA.greenCard} src={SODA.can} alt="Floating 3D diet soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className={`premium-soda-can ${ready ? "is-ready" : ""}`} />}
       </div>
 
-      {decorCount > 7 && <div className="premium-soda-object-layer premium-soda-berries-fg" aria-hidden="true">
-        {[0, 1, 2, 3, 4, 5].slice(0, Math.max(0, decorCount - 7)).map((index) => <model-viewer key={index} loading="lazy" ref={(node) => { berryRefs.current[index] = node; }} src={berryFlavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1.15" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
+      {modelViewerReady && <div className="premium-soda-object-layer premium-soda-berries-fg" aria-hidden="true">
+        {[0, 1, 2, 3, 4, 5].map((index) => <model-viewer key={index} loading="lazy" ref={(node) => { berryRefs.current[index] = node; }} src={berryFlavor === "blue" ? SODA.blueberry : SODA.cherry} environment-image="neutral" exposure="1.15" interaction-prompt="none" class={`premium-soda-berry berry-${index + 1}`} />)}
       </div>}
 
       <div className="premium-soda-right">
