@@ -244,6 +244,7 @@ function SodaHero() {
   const switchSpin = useRef(0);
   const switching = useRef(false);
   const selectedFlavor = useRef("classic");
+  const initialLoadStarted = useRef(false);
 
   const searchCategory = (query) => {
     window.dispatchEvent(new CustomEvent("reserveurtime:set-search", { detail: { query } }));
@@ -291,6 +292,8 @@ function SodaHero() {
     };
     const onLeave = () => { mouse.current.x = 0; mouse.current.y = 0; };
     const onLoad = async () => {
+      if (initialLoadStarted.current) return;
+      initialLoadStarted.current = true;
       // The bundled GLB carries its source Guarana label. Keep the poster in
       // front until the ReserveUrTime artwork has been applied so production
       // never flashes (or gets stuck on) the source can.
@@ -340,6 +343,10 @@ function SodaHero() {
     });
 
     model.addEventListener("load", onLoad);
+    // On Vercel the immutable GLB is often already cached and can finish
+    // before this effect attaches. Handle that state immediately as well as
+    // listening for a normal first load.
+    if (model.loaded) void onLoad();
     stage.addEventListener("mousemove", onMove);
     stage.addEventListener("mouseleave", onLeave);
     visibilityObserver.observe(stage);
