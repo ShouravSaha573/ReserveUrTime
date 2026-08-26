@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { gsap } from "gsap";
+import "@google/model-viewer";
 import GalaxyRestaurantSearch from "./GalaxyRestaurantSearch";
 import PhotorealFoodHero from "./motion/PhotorealFoodHero";
 
