@@ -7,15 +7,13 @@ import GalaxyRestaurantSearch from "./GalaxyRestaurantSearch";
 import PhotorealFoodHero from "./motion/PhotorealFoodHero";
 
 const SODA = {
-  leaves: "/hero-assets/soda/leaves.glb",
-  cherry: "/hero-assets/soda/cherry.glb",
-  blueberry: "/hero-assets/soda/blueberry.glb",
-  greenCan: "/hero-assets/soda/mojo-green-v2.glb",
-  blueCan: "/hero-assets/soda/mojo-blue-v2.glb",
+  leaves: "/hero-assets/soda/runtime/leaves/model.gltf",
+  cherry: "/hero-assets/soda/runtime/cherry/model.gltf",
+  blueberry: "/hero-assets/soda/runtime/blueberry/model.gltf",
+  greenCan: "/hero-assets/soda/runtime/green/model.gltf",
+  blueCan: "/hero-assets/soda/runtime/blue/model.gltf",
   greenCard: "/hero-assets/soda/green-soda.png",
-  blueCard: "/hero-assets/soda/blue-soda.png",
-  greenTexture: "/hero-assets/mojo-green-bangladesh-v3.png",
-  blueTexture: "/hero-assets/mojo-blue-bangladesh-v3.png"
+  blueCard: "/hero-assets/soda/blue-soda.png"
 };
 
 const FOOD_HEROES = [
@@ -239,14 +237,10 @@ function SodaHero() {
   const [berryFlavor, setBerryFlavor] = useState("classic");
   const [ready, setReady] = useState(false);
   const [modelViewerReady, setModelViewerReady] = useState(() => Boolean(customElements.get("model-viewer")));
-  const textures = useRef({ green: null, blue: null });
-  const texturePromises = useRef({ green: null, blue: null });
   const mouse = useRef({ x: 0, y: 0 });
   const current = useRef({ x: 0, y: 0 });
   const switchSpin = useRef(0);
   const switching = useRef(false);
-  const selectedFlavor = useRef("classic");
-  const initialLoadStarted = useRef(false);
 
   const searchCategory = (query) => {
     window.dispatchEvent(new CustomEvent("reserveurtime:set-search", { detail: { query } }));
@@ -293,19 +287,7 @@ function SodaHero() {
       mouse.current.y = (event.clientY - rect.top) / rect.height - 0.5;
     };
     const onLeave = () => { mouse.current.x = 0; mouse.current.y = 0; };
-    const onLoad = async () => {
-      if (initialLoadStarted.current) return;
-      initialLoadStarted.current = true;
-      // The bundled GLB carries its source Guarana label. Keep the poster in
-      // front until the ReserveUrTime artwork has been applied so production
-      // never flashes (or gets stuck on) the source can.
-      try {
-        const texture = await loadFlavorTexture(selectedFlavor.current);
-        if (texture) applyFlavorTexture(texture);
-      } catch { /* the poster remains a correct, usable fallback */ }
-      model.dismissPoster?.();
-      setReady(true);
-    };
+    const onLoad = () => setReady(true);
     const animate = () => {
       if (!active) {
         raf = 0;
@@ -363,49 +345,9 @@ function SodaHero() {
     };
   }, [reduced, modelViewerReady]);
 
-  const loadFlavorTexture = async (nextFlavor) => {
-    const model = modelRef.current;
-    if (!model?.createTexture) return null;
-    const key = nextFlavor === "blue" ? "blue" : "green";
-    if (textures.current[key]) return textures.current[key];
-    if (!texturePromises.current[key]) {
-      texturePromises.current[key] = model
-        .createTexture(nextFlavor === "blue" ? SODA.blueTexture : SODA.greenTexture)
-        .then((texture) => {
-          textures.current[key] = texture;
-          return texture;
-        })
-        .finally(() => { texturePromises.current[key] = null; });
-    }
-    return texturePromises.current[key];
-  };
-
-  const warmFlavor = (nextFlavor) => {
-    if (!ready || nextFlavor === flavor) return;
-    loadFlavorTexture(nextFlavor).catch(() => {});
-  };
-
-  const applyFlavorTexture = (texture) => {
-    const model = modelRef.current;
-    if (!model?.model || !texture) return;
-    model.model.materials.forEach((material) => {
-      const slot = material?.pbrMetallicRoughness?.baseColorTexture;
-      if (slot) slot.setTexture(texture);
-    });
-  };
-
-  useEffect(() => {
-    if (!ready) return undefined;
-    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1200));
-    const cancel = window.cancelIdleCallback || window.clearTimeout;
-    const task = schedule(() => loadFlavorTexture("blue").catch(() => {}), { timeout: 4000 });
-    return () => cancel(task);
-  }, [ready]);
-
   const switchFlavor = (nextFlavor) => {
     if (nextFlavor === flavor || switching.current) return;
     setFlavor(nextFlavor);
-    selectedFlavor.current = nextFlavor;
     const model = modelRef.current;
     const berries = berryRefs.current.filter(Boolean);
 
@@ -414,24 +356,12 @@ function SodaHero() {
       return;
     }
 
-    switching.current = true;
-    const pendingTexture = loadFlavorTexture(nextFlavor).catch(() => null);
-    pendingTexture.then((texture) => {
-      if (texture && selectedFlavor.current === nextFlavor) applyFlavorTexture(texture);
-    });
-    const texturePromise = Promise.race([
-      pendingTexture,
-      new Promise((resolve) => window.setTimeout(() => resolve(null), 180))
-    ]);
-
     if (reduced) {
-      texturePromise.then((texture) => {
-        applyFlavorTexture(texture);
-        setBerryFlavor(nextFlavor);
-        switching.current = false;
-      });
+      setBerryFlavor(nextFlavor);
       return;
     }
+
+    switching.current = true;
 
     if (berries.length) {
       gsap.killTweensOf(berries);
@@ -469,10 +399,7 @@ function SodaHero() {
         switchSpin.current = spinObj.val;
         model.style.filter = `blur(${spinObj.blur}px)`;
       },
-      onComplete: async () => {
-        const texture = await texturePromise;
-        try { applyFlavorTexture(texture); } catch { /* keep the current material */ }
-
+      onComplete: () => {
         gsap.to(spinObj, {
           val: 360,
           blur: 0,
@@ -486,9 +413,6 @@ function SodaHero() {
             switchSpin.current = 0;
             model.style.filter = "none";
             switching.current = false;
-            if (nextFlavor === "blue") {
-              window.setTimeout(() => loadFlavorTexture("classic").catch(() => {}), 250);
-            }
           }
         });
       }
@@ -529,10 +453,10 @@ function SodaHero() {
 
       <div className="premium-soda-right">
         <div className="premium-soda-cards" role="group" aria-label="Soda flavor">
-          <button type="button" className={flavor === "classic" ? "is-active" : ""} onPointerEnter={() => warmFlavor("classic")} onFocus={() => warmFlavor("classic")} onClick={() => switchFlavor("classic")}>
+          <button type="button" className={flavor === "classic" ? "is-active" : ""} onClick={() => switchFlavor("classic")}>
             <img src={SODA.greenCard} alt="Diet Classic soda" loading="lazy" decoding="async" fetchPriority="low" /><span><b>Diet Classic</b><small>Classic</small></span>
           </button>
-          <button type="button" className={flavor === "blue" ? "is-active" : ""} onPointerEnter={() => warmFlavor("blue")} onFocus={() => warmFlavor("blue")} onClick={() => switchFlavor("blue")}>
+          <button type="button" className={flavor === "blue" ? "is-active" : ""} onClick={() => switchFlavor("blue")}>
             <img src={SODA.blueCard} alt="Zero Lime soda" loading="lazy" decoding="async" fetchPriority="low" /><span><b>Zero Lime</b><small>Lime</small></span>
           </button>
         </div>
