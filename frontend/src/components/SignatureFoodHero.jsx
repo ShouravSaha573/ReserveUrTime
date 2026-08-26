@@ -314,7 +314,15 @@ function SodaHero() {
       mouse.current.y = (event.clientY - rect.top) / rect.height - 0.5;
     };
     const onLeave = () => { mouse.current.x = 0; mouse.current.y = 0; };
-    const onLoad = () => {
+    const onLoad = async () => {
+      // The bundled GLB carries its source Guarana label. Keep the poster in
+      // front until the ReserveUrTime artwork has been applied so production
+      // never flashes (or gets stuck on) the source can.
+      try {
+        const texture = await loadFlavorTexture(selectedFlavor.current);
+        if (texture) applyFlavorTexture(texture);
+      } catch { /* the poster remains a correct, usable fallback */ }
+      model.dismissPoster?.();
       setReady(true);
     };
     const animate = () => {
@@ -528,7 +536,7 @@ function SodaHero() {
 
       <div className="premium-soda-center">
         {!ready && <img className="premium-soda-can-fallback" src={flavor === "blue" ? SODA.blueCard : SODA.greenCard} alt="" loading="lazy" decoding="async" fetchPriority="low" />}
-        {modelViewerReady && <model-viewer ref={modelRef} loading="eager" reveal="auto" poster={flavor === "blue" ? SODA.blueCard : SODA.greenCard} src={SODA.can} alt="Floating 3D diet soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className={`premium-soda-can ${ready ? "is-ready" : ""}`} />}
+        {modelViewerReady && <model-viewer ref={modelRef} loading="eager" reveal="manual" poster={flavor === "blue" ? SODA.blueCard : SODA.greenCard} src={SODA.can} alt="Floating 3D diet soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className={`premium-soda-can ${ready ? "is-ready" : ""}`} />}
       </div>
 
       {decorCount > 7 && <div className="premium-soda-object-layer premium-soda-berries-fg" aria-hidden="true">
