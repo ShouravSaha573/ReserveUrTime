@@ -9,7 +9,8 @@ const SODA = {
   leaves: "/hero-assets/soda/leaves.glb",
   cherry: "/hero-assets/soda/cherry.glb",
   blueberry: "/hero-assets/soda/blueberry.glb",
-  can: "/hero-assets/soda/diet-soda.glb",
+  greenCan: "/hero-assets/soda/mojo-green.glb",
+  blueCan: "/hero-assets/soda/mojo-blue.glb",
   greenCard: "/hero-assets/soda/green-soda.png",
   blueCard: "/hero-assets/soda/blue-soda.png",
   greenTexture: "/hero-assets/mojo-green-bangladesh-v3.png",
@@ -518,8 +519,7 @@ function SodaHero() {
       </div>}
 
       <div className="premium-soda-center">
-        {!ready && <img className="premium-soda-can-fallback" src={flavor === "blue" ? SODA.blueCard : SODA.greenCard} alt="" loading="lazy" decoding="async" fetchPriority="low" />}
-        {modelViewerReady && <model-viewer ref={modelRef} loading="eager" reveal="manual" poster={flavor === "blue" ? SODA.blueCard : SODA.greenCard} src={SODA.can} alt="Floating 3D diet soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className={`premium-soda-can ${ready ? "is-ready" : ""}`} />}
+        {modelViewerReady && <model-viewer ref={modelRef} loading="eager" reveal="auto" src={flavor === "blue" ? SODA.blueCan : SODA.greenCan} alt="Floating 3D Mojo soda can" camera-controls disable-zoom shadow-intensity="0" environment-image="neutral" exposure="1.5" interaction-prompt="none" camera-orbit="0deg 90deg 380%" field-of-view="30deg" className={`premium-soda-can ${ready ? "is-ready" : ""}`} />}
       </div>
 
       {modelViewerReady && <div className="premium-soda-object-layer premium-soda-berries-fg" aria-hidden="true">
